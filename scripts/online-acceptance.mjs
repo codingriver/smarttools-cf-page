@@ -160,6 +160,12 @@ try {
     assert(await publicPage.locator('.sub-card').count() === 0, 'production collapsed sub-cards rendered eagerly');
     await publicPage.locator('.expand-zone').first().click();
     await publicPage.locator('.sub-cards.expanded .sub-card').first().waitFor();
+    const mobileSubCardTypography = await publicPage.locator('.sub-cards.expanded .compact-card .link-url').first().evaluate(element => {
+        const style = getComputedStyle(element);
+        return { fontSize: style.fontSize, textOverflow: style.textOverflow, whiteSpace: style.whiteSpace };
+    });
+    assert(mobileSubCardTypography.fontSize === '12px', `production mobile sub-card font size is inconsistent: ${mobileSubCardTypography.fontSize}`);
+    assert(mobileSubCardTypography.textOverflow === 'ellipsis' && mobileSubCardTypography.whiteSpace === 'nowrap', 'production mobile long text truncation is missing');
     await publicContext.close();
     assert(errors.length === 0, `production browser errors: ${errors.join('; ')}`);
 } finally {

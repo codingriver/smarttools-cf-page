@@ -76,6 +76,17 @@ try {
     await publicHome.locator('.expand-zone').first().click();
     await publicHome.locator('.sub-cards.expanded .sub-card').first().waitFor();
     assert((await publicHome.locator('.sub-cards.expanded').innerText()).includes('Public Sub Card'), 'lazy sub-card expansion failed');
+    const subCardTypography = await publicHome.locator('.sub-cards.expanded .compact-card .link-url').first().evaluate(element => {
+        const style = getComputedStyle(element);
+        return {
+            fontSize: style.fontSize,
+            overflow: style.overflow,
+            textOverflow: style.textOverflow,
+            whiteSpace: style.whiteSpace
+        };
+    });
+    assert(subCardTypography.fontSize === '13px', `desktop compact sub-card font size is inconsistent: ${subCardTypography.fontSize}`);
+    assert(subCardTypography.overflow === 'hidden' && subCardTypography.textOverflow === 'ellipsis' && subCardTypography.whiteSpace === 'nowrap', 'long compact sub-card text is not truncated');
 
     const legacyRoute = await publicContext.newPage();
     await legacyRoute.goto(base + '/index5.html', { waitUntil: 'networkidle' });
@@ -89,6 +100,10 @@ try {
     await mobileHome.waitForTimeout(300);
     assert(await mobileHome.locator('#styleSwitcher').count() === 0, 'theme switcher rendered on mobile');
     assert(await mobileHome.locator('.link-card').count() >= 1, 'mobile homepage cards missing');
+    await mobileHome.locator('.expand-zone').first().click();
+    const mobileSubCard = mobileHome.locator('.sub-cards.expanded .compact-card .link-url').first();
+    await mobileSubCard.waitFor();
+    assert(await mobileSubCard.evaluate(element => getComputedStyle(element).fontSize) === '12px', 'mobile compact sub-card font size was reduced');
     await mobileContext.close();
 
     assert(errors.length === 0, `browser errors:\n${errors.join('\n')}`);

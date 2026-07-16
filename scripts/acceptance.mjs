@@ -28,7 +28,7 @@ const testData = `/* acceptance fixture */
 var sections = [
     { key: 'public_links', kind: 'card', label: 'Public', visible: true, dynamic: false, cards: [
         { id: 'public_card', type: 'expandable', title: 'Public Card', url: 'https://example.com', subCards: [
-            { id: 'public_sub_card', type: 'compact', title: 'Public Sub Card', url: 'https://example.com/sub' }
+            { id: 'public_sub_card', type: 'compact', content: 'Public Sub Card With A Very Long Title That Must Be Truncated', url: 'https://example.com/sub' }
         ] }
     ] },
     { key: 'private_links', kind: 'card', label: 'Private', visible: true, dynamic: false, private: true, cards: [
