@@ -157,6 +157,10 @@ try {
     assert(await publicPage.locator('.link-card').count() >= 1, 'production mobile homepage cards missing');
     assert(publicRequests.filter(pathname => pathname === '/api/site-config').length === 0, 'production homepage requested site config separately');
     assert(publicRequests.filter(pathname => pathname === '/api/data').length === 1, 'production homepage did not use one combined data request');
+    assert(publicRequests.filter(pathname => pathname === '/shared/fav-page.js').length === 0, 'production homepage runtime was not inlined');
+    assert(publicRequests.filter(pathname => pathname === '/shared/note-modal.js').length === 0, 'production note modal loaded on the initial path');
+    await publicPage.evaluate(() => window.__SmartToolsLoadNoteModal());
+    assert(await publicPage.evaluate(() => !!window.NoteModal), 'production note modal failed to load on demand');
     assert(await publicPage.locator('.sub-card').count() === 0, 'production collapsed sub-cards rendered eagerly');
     await publicPage.locator('.expand-zone').first().click();
     await publicPage.locator('.sub-cards.expanded .sub-card').first().waitFor();

@@ -12,6 +12,7 @@
     "test": "npm run test:api && npm run test:browser"
   },
   "devDependencies": {
+    "esbuild": "^0.28.1",
     "playwright-core": "^1.55.0"
   }
 }

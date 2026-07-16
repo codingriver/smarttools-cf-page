@@ -72,6 +72,12 @@ try {
     assert(publicHomeRequests.filter(path => path === '/api/data').length === 1, 'public homepage did not use one combined data request');
     assert(publicHomeRequests.filter(path => path === '/api/site-config').length === 0, 'public homepage requested site config separately');
     assert(await publicHome.title() === 'SmartTools Acceptance', 'merged site title was not applied');
+    assert(publicHomeRequests.filter(path => path === '/shared/note-modal.js').length === 0, 'note modal script loaded during the initial render');
+    await publicHome.locator('.link-card .link-title').first().click();
+    await publicHome.locator('.note-mask').waitFor();
+    assert(publicHomeRequests.filter(path => path === '/shared/note-modal.js').length === 1, 'note modal script was not loaded on demand');
+    assert(publicHomeRequests.filter(path => path === '/shared/note-modal.css').length === 1, 'note modal stylesheet was not loaded on demand');
+    await publicHome.locator('.note-close').click();
     assert(await publicHome.locator('.sub-card').count() === 0, 'collapsed sub-cards were rendered eagerly');
     await publicHome.locator('.expand-zone').first().click();
     await publicHome.locator('.sub-cards.expanded .sub-card').first().waitFor();
@@ -89,7 +95,7 @@ try {
     assert(subCardTypography.overflow === 'hidden' && subCardTypography.textOverflow === 'ellipsis' && subCardTypography.whiteSpace === 'nowrap', 'long compact sub-card text is not truncated');
 
     const legacyRoute = await publicContext.newPage();
-    await legacyRoute.goto(base + '/index5.html', { waitUntil: 'networkidle' });
+    await legacyRoute.goto(base + '/index5.html', { waitUntil: 'domcontentloaded' });
     assert(new URL(legacyRoute.url()).pathname === '/', 'legacy theme route did not redirect home');
 
     const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });

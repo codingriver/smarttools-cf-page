@@ -161,6 +161,69 @@ function __registerCard(card, meta) {
     return id;
 }
 
+var __noteModalLoadPromise = null;
+
+function __ensureNoteModal() {
+    if (window.NoteModal) return Promise.resolve(window.NoteModal);
+    if (__noteModalLoadPromise) return __noteModalLoadPromise;
+
+    __noteModalLoadPromise = new Promise(function(resolve, reject) {
+        var css = document.querySelector('link[data-smart-note-style]');
+        var cssWasPresent = !!css;
+        if (!css) {
+            css = document.createElement('link');
+            css.rel = 'stylesheet';
+            css.href = 'shared/note-modal.css';
+            css.setAttribute('data-smart-note-style', '');
+            document.head.appendChild(css);
+        }
+
+        var script = document.querySelector('script[data-smart-note-script]');
+        if (!script) {
+            script = document.createElement('script');
+            script.src = 'shared/note-modal.js';
+            script.async = true;
+            script.setAttribute('data-smart-note-script', '');
+            document.head.appendChild(script);
+        }
+
+        var cssReady = new Promise(function(cssResolve) {
+            if (cssWasPresent && css.sheet) cssResolve();
+            else {
+                css.addEventListener('load', cssResolve, { once: true });
+                css.addEventListener('error', cssResolve, { once: true });
+            }
+        });
+
+        var scriptReady = window.NoteModal
+            ? Promise.resolve()
+            : new Promise(function(scriptResolve, scriptReject) {
+                script.addEventListener('load', scriptResolve, { once: true });
+                script.addEventListener('error', function() {
+                    scriptReject(new Error('note modal script failed to load'));
+                }, { once: true });
+            });
+
+        Promise.all([cssReady, scriptReady]).then(function() {
+            if (window.NoteModal) resolve(window.NoteModal);
+            else reject(new Error('note modal did not initialize'));
+        }, reject);
+    }).catch(function(error) {
+        __noteModalLoadPromise = null;
+        throw error;
+    });
+
+    return __noteModalLoadPromise;
+}
+
+function __showNoteModal(cardId) {
+    __ensureNoteModal()
+        .then(function(modal) { modal.show(cardId); })
+        .catch(function(error) { console.warn('note modal unavailable:', error && error.message); });
+}
+
+window.__SmartToolsLoadNoteModal = __ensureNoteModal;
+
 /**
  * 卡片点击统一入口（非 <a> 标签使用）：
  *   有 comment → 弹注释；无 comment → 打开 url；两者都没有 → 不响应
@@ -169,8 +232,8 @@ window.__favCardOpen = function(cardId) {
     var entry = __cardRegistry[cardId];
     if (!entry) return;
     var card = entry.card;
-    if (card.comment && window.NoteModal) {
-        window.NoteModal.show(cardId);
+    if (card.comment) {
+        __showNoteModal(cardId);
         return;
     }
     var url = __safeUrl(card.url);
@@ -184,9 +247,9 @@ window.__favCardOpen = function(cardId) {
  */
 window.__favLinkClick = function(cardId, event) {
     var entry = __cardRegistry[cardId];
-    if (!entry || !entry.card.comment || !window.NoteModal) return true;
+    if (!entry || !entry.card.comment) return true;
     if (event && event.preventDefault) event.preventDefault();
-    window.NoteModal.show(cardId);
+    __showNoteModal(cardId);
     return false;
 };
 
@@ -201,7 +264,7 @@ window.__favEmailClick = function(event) {
     if (event && event.preventDefault) event.preventDefault();
     var cd = currentEmailData;
     if (!cd) return;
-    if (cd.comment && window.NoteModal) {
+    if (cd.comment) {
         var cards = getEmailCards();
         var idx = cards.indexOf(cd);
         var cid = __registerCard(cd, {
@@ -209,7 +272,7 @@ window.__favEmailClick = function(event) {
             emailIndex: idx,
             uniqueKey:  'emailData/email/' + idx
         });
-        window.NoteModal.show(cid);
+        __showNoteModal(cid);
     } else if (cd.url) {
         var url = __safeUrl(cd.url);
         if (url && url !== '#') window.open(url, '_blank', 'noopener,noreferrer');
@@ -1045,6 +1108,18 @@ async function bootFavPage() {
     if (emailSec && emailSec.cards && emailSec.cards.length) currentEmailData = emailSec.cards[0];
 
     renderAllSections(currentLayout);
+
+    // 注释模块不参与首屏渲染；空闲时预热，用户提前点击时则按需立即加载。
+    var warmNoteModal = function() {
+        __ensureNoteModal().catch(function() {});
+    };
+    setTimeout(function() {
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(warmNoteModal, { timeout: 2000 });
+        } else {
+            warmNoteModal();
+        }
+    }, 2500);
 
     var ol = document.getElementById('overlay');
     if (ol) {

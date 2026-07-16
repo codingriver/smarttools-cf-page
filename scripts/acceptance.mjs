@@ -27,7 +27,7 @@ async function json(path, method = 'GET', body, cookie) {
 const testData = `/* acceptance fixture */
 var sections = [
     { key: 'public_links', kind: 'card', label: 'Public', visible: true, dynamic: false, cards: [
-        { id: 'public_card', type: 'expandable', title: 'Public Card', url: 'https://example.com', subCards: [
+        { id: 'public_card', type: 'expandable', title: 'Public Card', url: 'https://example.com', comment: 'Acceptance parent note', subCards: [
             { id: 'public_sub_card', type: 'compact', content: 'Public Sub Card With A Very Long Title That Must Be Truncated', url: 'https://example.com/sub' }
         ] }
     ] },
@@ -150,7 +150,8 @@ assert(!home.body.includes('styleSwitcher'), 'theme switcher remains on homepage
 assert(!/index[1-5]\.html/.test(home.body), 'legacy theme links remain on homepage');
 assert(home.body.includes('<title>CodingRiver书签收藏站</title>'), 'homepage default title is empty');
 assert(!home.body.includes('src="shared/data-loader.js"'), 'homepage still blocks on external data loader');
-assert(home.body.includes('defer src="shared/note-modal.js"') && home.body.includes('defer src="shared/fav-page.js"'), 'homepage scripts are not deferred');
+assert(home.body.includes('data-build-output="fav-page-inline"'), 'homepage runtime was not inlined by the production build');
+assert(!/<script\b[^>]*\bsrc="shared\/(?:fav-page|note-modal)\.js"/i.test(home.body), 'homepage still has a blocking external runtime script tag');
 
 const pageLogic = await request('/shared/fav-page.js');
 assert(!pageLogic.body.includes("fetch('/api/site-config')"), 'homepage still makes a separate site config request');

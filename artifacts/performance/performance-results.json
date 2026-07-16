@@ -3,74 +3,56 @@
   "base": "https://www.303066.xyz",
   "rounds": 5,
   "coldAverage": {
-    "htmlTtfb": 147,
-    "domContentLoaded": 732,
-    "dataReady": 746,
-    "cardsReady": 914,
-    "fcp": 418,
-    "lcp": 418,
+    "htmlTtfb": 158,
+    "domContentLoaded": 435,
+    "dataReady": 690,
+    "cardsReady": 790,
+    "fcp": 452,
+    "lcp": 452,
     "cls": 0,
     "initialImages": 0
   },
   "hotAverage": {
     "htmlTtfb": 0,
-    "domContentLoaded": 62,
-    "dataReady": 17,
-    "cardsReady": 174,
-    "fcp": 109,
-    "lcp": 109,
+    "domContentLoaded": 18,
+    "dataReady": 16,
+    "cardsReady": 170,
+    "fcp": 86,
+    "lcp": 86,
     "cls": 0,
     "initialImages": 0
   },
   "cold": [
     {
       "label": "cold-1",
-      "wall": 1771,
+      "wall": 1833,
       "html": {
-        "dns": 1,
-        "connect": 180,
-        "tls": 178,
-        "ttfb": 153,
-        "htmlDownload": 91,
-        "domContentLoaded": 743,
-        "load": 744,
-        "fcp": 508,
-        "lcp": 508,
+        "dns": 5,
+        "connect": 209,
+        "tls": 110,
+        "ttfb": 147,
+        "htmlDownload": 106,
+        "domContentLoaded": 486,
+        "load": 487,
+        "fcp": 516,
+        "lcp": 516,
         "cls": 0,
-        "cardsReady": 1257
+        "cardsReady": 1316
       },
       "resources": {
         "data": {
-          "start": 350,
-          "ttfb": 747,
-          "download": 71,
-          "end": 1168,
-          "transferBytes": 13737
+          "start": 382,
+          "ttfb": 765,
+          "download": 79,
+          "end": 1226,
+          "transferBytes": 13819
         },
-        "noteModalCss": {
-          "start": 351,
-          "ttfb": 122,
-          "download": 57,
-          "end": 529,
-          "transferBytes": 5192
-        },
-        "noteModalJs": {
-          "start": 351,
-          "ttfb": 143,
-          "download": 177,
-          "end": 671,
-          "transferBytes": 13368
-        },
-        "favPageJs": {
-          "start": 351,
-          "ttfb": 215,
-          "download": 172,
-          "end": 738,
-          "transferBytes": 15000
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,
@@ -82,52 +64,34 @@
     },
     {
       "label": "cold-2",
-      "wall": 1360,
+      "wall": 1210,
       "html": {
-        "dns": 1,
-        "connect": 134,
-        "tls": 134,
-        "ttfb": 145,
-        "htmlDownload": 45,
-        "domContentLoaded": 751,
-        "load": 753,
-        "fcp": 396,
-        "lcp": 396,
+        "dns": 31,
+        "connect": 140,
+        "tls": 139,
+        "ttfb": 148,
+        "htmlDownload": 108,
+        "domContentLoaded": 431,
+        "load": 432,
+        "fcp": 452,
+        "lcp": 452,
         "cls": 0,
-        "cardsReady": 853
+        "cardsReady": 676
       },
       "resources": {
         "data": {
-          "start": 293,
-          "ttfb": 193,
-          "download": 157,
-          "end": 642,
-          "transferBytes": 13819
+          "start": 333,
+          "ttfb": 146,
+          "download": 85,
+          "end": 564,
+          "transferBytes": 13817
         },
-        "noteModalCss": {
-          "start": 293,
-          "ttfb": 124,
-          "download": 24,
-          "end": 440,
-          "transferBytes": 5192
-        },
-        "noteModalJs": {
-          "start": 293,
-          "ttfb": 152,
-          "download": 156,
-          "end": 601,
-          "transferBytes": 13368
-        },
-        "favPageJs": {
-          "start": 293,
-          "ttfb": 357,
-          "download": 95,
-          "end": 745,
-          "transferBytes": 15000
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,
@@ -139,52 +103,34 @@
     },
     {
       "label": "cold-3",
-      "wall": 1324,
+      "wall": 1177,
       "html": {
-        "dns": 0,
-        "connect": 123,
-        "tls": 122,
-        "ttfb": 145,
-        "htmlDownload": 60,
-        "domContentLoaded": 713,
-        "load": 715,
-        "fcp": 388,
-        "lcp": 388,
+        "dns": 5,
+        "connect": 124,
+        "tls": 123,
+        "ttfb": 181,
+        "htmlDownload": 109,
+        "domContentLoaded": 426,
+        "load": 426,
+        "fcp": 436,
+        "lcp": 436,
         "cls": 0,
-        "cardsReady": 816
+        "cardsReady": 672
       },
       "resources": {
         "data": {
-          "start": 280,
-          "ttfb": 153,
-          "download": 203,
-          "end": 635,
-          "transferBytes": 13817
+          "start": 323,
+          "ttfb": 154,
+          "download": 88,
+          "end": 565,
+          "transferBytes": 13819
         },
-        "noteModalCss": {
-          "start": 280,
-          "ttfb": 119,
-          "download": 21,
-          "end": 420,
-          "transferBytes": 5192
-        },
-        "noteModalJs": {
-          "start": 280,
-          "ttfb": 143,
-          "download": 183,
-          "end": 606,
-          "transferBytes": 13368
-        },
-        "favPageJs": {
-          "start": 281,
-          "ttfb": 318,
-          "download": 110,
-          "end": 708,
-          "transferBytes": 15000
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,
@@ -196,52 +142,34 @@
     },
     {
       "label": "cold-4",
-      "wall": 1333,
+      "wall": 1192,
       "html": {
-        "dns": 3,
-        "connect": 134,
-        "tls": 133,
-        "ttfb": 149,
-        "htmlDownload": 55,
-        "domContentLoaded": 731,
-        "load": 733,
-        "fcp": 404,
-        "lcp": 404,
+        "dns": 1,
+        "connect": 142,
+        "tls": 141,
+        "ttfb": 164,
+        "htmlDownload": 119,
+        "domContentLoaded": 430,
+        "load": 430,
+        "fcp": 440,
+        "lcp": 440,
         "cls": 0,
-        "cardsReady": 827
+        "cardsReady": 685
       },
       "resources": {
         "data": {
-          "start": 297,
-          "ttfb": 147,
-          "download": 226,
-          "end": 670,
-          "transferBytes": 13817
+          "start": 319,
+          "ttfb": 178,
+          "download": 95,
+          "end": 591,
+          "transferBytes": 13875
         },
-        "noteModalCss": {
-          "start": 297,
-          "ttfb": 117,
-          "download": 38,
-          "end": 452,
-          "transferBytes": 5192
-        },
-        "noteModalJs": {
-          "start": 297,
-          "ttfb": 138,
-          "download": 197,
-          "end": 632,
-          "transferBytes": 13368
-        },
-        "favPageJs": {
-          "start": 298,
-          "ttfb": 271,
-          "download": 158,
-          "end": 727,
-          "transferBytes": 15000
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,
@@ -253,52 +181,34 @@
     },
     {
       "label": "cold-5",
-      "wall": 1322,
+      "wall": 1111,
       "html": {
-        "dns": 0,
+        "dns": 1,
         "connect": 134,
         "tls": 133,
-        "ttfb": 145,
-        "htmlDownload": 51,
-        "domContentLoaded": 723,
-        "load": 726,
-        "fcp": 392,
-        "lcp": 392,
+        "ttfb": 152,
+        "htmlDownload": 112,
+        "domContentLoaded": 403,
+        "load": 403,
+        "fcp": 416,
+        "lcp": 416,
         "cls": 0,
-        "cardsReady": 816
+        "cardsReady": 602
       },
       "resources": {
         "data": {
-          "start": 290,
-          "ttfb": 183,
-          "download": 141,
-          "end": 614,
-          "transferBytes": 13768
+          "start": 299,
+          "ttfb": 125,
+          "download": 83,
+          "end": 506,
+          "transferBytes": 13855
         },
-        "noteModalCss": {
-          "start": 290,
-          "ttfb": 118,
-          "download": 21,
-          "end": 429,
-          "transferBytes": 5192
-        },
-        "noteModalJs": {
-          "start": 290,
-          "ttfb": 143,
-          "download": 146,
-          "end": 579,
-          "transferBytes": 13368
-        },
-        "favPageJs": {
-          "start": 290,
-          "ttfb": 332,
-          "download": 96,
-          "end": 718,
-          "transferBytes": 15000
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,
@@ -312,52 +222,34 @@
   "hot": [
     {
       "label": "hot-1",
-      "wall": 685,
+      "wall": 673,
       "html": {
         "dns": 0,
         "connect": 0,
         "tls": 0,
         "ttfb": 0,
         "htmlDownload": 1,
-        "domContentLoaded": 25,
-        "load": 77,
-        "fcp": 148,
-        "lcp": 148,
+        "domContentLoaded": 18,
+        "load": 21,
+        "fcp": 72,
+        "lcp": 72,
         "cls": 0,
-        "cardsReady": 172
+        "cardsReady": 166
       },
       "resources": {
         "data": {
-          "start": 15,
+          "start": 14,
           "ttfb": 1,
           "download": 1,
-          "end": 17,
+          "end": 16,
           "transferBytes": 0
         },
-        "noteModalCss": {
-          "start": 16,
-          "ttfb": 2,
-          "download": 0,
-          "end": 18,
-          "transferBytes": 0
-        },
-        "noteModalJs": {
-          "start": 16,
-          "ttfb": 2,
-          "download": 1,
-          "end": 18,
-          "transferBytes": 0
-        },
-        "favPageJs": {
-          "start": 16,
-          "ttfb": 3,
-          "download": 1,
-          "end": 19,
-          "transferBytes": 0
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,
@@ -369,52 +261,34 @@
     },
     {
       "label": "hot-2",
-      "wall": 686,
+      "wall": 692,
       "html": {
         "dns": 0,
         "connect": 0,
         "tls": 0,
         "ttfb": 0,
         "htmlDownload": 1,
-        "domContentLoaded": 73,
-        "load": 133,
-        "fcp": 156,
-        "lcp": 156,
+        "domContentLoaded": 18,
+        "load": 20,
+        "fcp": 100,
+        "lcp": 100,
         "cls": 0,
-        "cardsReady": 177
+        "cardsReady": 185
       },
       "resources": {
         "data": {
           "start": 14,
-          "ttfb": 1,
-          "download": 1,
-          "end": 15,
-          "transferBytes": 0
-        },
-        "noteModalCss": {
-          "start": 14,
           "ttfb": 2,
-          "download": 0,
+          "download": 1,
           "end": 16,
           "transferBytes": 0
         },
-        "noteModalJs": {
-          "start": 15,
-          "ttfb": 1,
-          "download": 1,
-          "end": 17,
-          "transferBytes": 0
-        },
-        "favPageJs": {
-          "start": 15,
-          "ttfb": 3,
-          "download": 0,
-          "end": 18,
-          "transferBytes": 0
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,
@@ -426,52 +300,34 @@
     },
     {
       "label": "hot-3",
-      "wall": 695,
+      "wall": 675,
       "html": {
         "dns": 0,
         "connect": 0,
         "tls": 0,
         "ttfb": 0,
         "htmlDownload": 1,
-        "domContentLoaded": 77,
-        "load": 77,
+        "domContentLoaded": 16,
+        "load": 18,
         "fcp": 92,
         "lcp": 92,
         "cls": 0,
-        "cardsReady": 186
+        "cardsReady": 167
       },
       "resources": {
         "data": {
-          "start": 17,
+          "start": 13,
           "ttfb": 1,
           "download": 1,
-          "end": 18,
+          "end": 14,
           "transferBytes": 0
         },
-        "noteModalCss": {
-          "start": 17,
-          "ttfb": 2,
-          "download": 0,
-          "end": 19,
-          "transferBytes": 0
-        },
-        "noteModalJs": {
-          "start": 17,
-          "ttfb": 2,
-          "download": 1,
-          "end": 20,
-          "transferBytes": 0
-        },
-        "favPageJs": {
-          "start": 17,
-          "ttfb": 3,
-          "download": 1,
-          "end": 20,
-          "transferBytes": 0
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,
@@ -483,52 +339,34 @@
     },
     {
       "label": "hot-4",
-      "wall": 688,
+      "wall": 669,
       "html": {
         "dns": 0,
         "connect": 0,
         "tls": 0,
         "ttfb": 0,
         "htmlDownload": 1,
-        "domContentLoaded": 72,
-        "load": 72,
-        "fcp": 72,
-        "lcp": 72,
+        "domContentLoaded": 20,
+        "load": 22,
+        "fcp": 80,
+        "lcp": 80,
         "cls": 0,
-        "cardsReady": 181
+        "cardsReady": 160
       },
       "resources": {
         "data": {
-          "start": 17,
+          "start": 15,
           "ttfb": 1,
           "download": 1,
-          "end": 19,
+          "end": 17,
           "transferBytes": 0
         },
-        "noteModalCss": {
-          "start": 17,
-          "ttfb": 2,
-          "download": 0,
-          "end": 19,
-          "transferBytes": 0
-        },
-        "noteModalJs": {
-          "start": 18,
-          "ttfb": 2,
-          "download": 0,
-          "end": 20,
-          "transferBytes": 0
-        },
-        "favPageJs": {
-          "start": 18,
-          "ttfb": 3,
-          "download": 1,
-          "end": 21,
-          "transferBytes": 0
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,
@@ -540,52 +378,34 @@
     },
     {
       "label": "hot-5",
-      "wall": 666,
+      "wall": 678,
       "html": {
         "dns": 0,
         "connect": 0,
         "tls": 0,
         "ttfb": 0,
-        "htmlDownload": 0,
-        "domContentLoaded": 63,
-        "load": 63,
-        "fcp": 76,
-        "lcp": 76,
+        "htmlDownload": 1,
+        "domContentLoaded": 19,
+        "load": 21,
+        "fcp": 84,
+        "lcp": 84,
         "cls": 0,
-        "cardsReady": 156
+        "cardsReady": 172
       },
       "resources": {
         "data": {
-          "start": 12,
+          "start": 14,
           "ttfb": 1,
           "download": 1,
-          "end": 14,
-          "transferBytes": 0
-        },
-        "noteModalCss": {
-          "start": 13,
-          "ttfb": 2,
-          "download": 0,
           "end": 15,
           "transferBytes": 0
         },
-        "noteModalJs": {
-          "start": 13,
-          "ttfb": 2,
-          "download": 0,
-          "end": 15,
-          "transferBytes": 0
-        },
-        "favPageJs": {
-          "start": 13,
-          "ttfb": 3,
-          "download": 0,
-          "end": 16,
-          "transferBytes": 0
-        }
+        "noteModalCss": null,
+        "noteModalJs": null,
+        "favPageJs": null
       },
       "requestCounts": {
-        "total": 5,
+        "total": 2,
         "apiData": 1,
         "siteConfig": 0,
         "apiDataResources": 1,

@@ -184,6 +184,14 @@ assert(
     `homepage must load exactly one /api/data resource: ${JSON.stringify(all.map(result => ({ label: result.label, apiDataResources: result.requestCounts.apiDataResources, networkEvents: result.requestCounts.apiData })))}`
 );
 assert(all.every(result => result.requestCounts.siteConfigResources === 0), 'homepage still loads /api/site-config');
+assert(
+    all.every(result => result.resources.favPageJs === null),
+    `homepage runtime still uses a separate fav-page.js request: ${all.filter(result => result.resources.favPageJs).map(result => result.label).join(', ')}`
+);
+assert(
+    all.every(result => result.resources.noteModalJs === null && result.resources.noteModalCss === null),
+    `note modal resources loaded on the initial path: ${all.filter(result => result.resources.noteModalJs || result.resources.noteModalCss).map(result => result.label).join(', ')}`
+);
 assert(cold.every(result => result.requestCounts.thirdPartyImages <= 6), 'too many third-party images load before scrolling');
 
 const summary = {

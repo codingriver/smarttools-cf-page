@@ -90,11 +90,8 @@
     })();
     </script>
 
-    <!-- 注释模块不参与首屏绘制，资源并行下载但不阻塞渲染。 -->
-    <link rel="preload" href="shared/note-modal.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="shared/note-modal.css"></noscript>
-    <script defer src="shared/note-modal.js"></script>
-    <script defer src="shared/fav-page.js"></script>
+    <!-- 发布构建会把主页渲染脚本移到 body 末尾内联；源码直开时仍使用外部脚本。 -->
+    <script defer src="shared/fav-page.js" data-build-inline="fav-page"></script>
 
     <style id="admin-view-hide-css">
         html:not([data-admin-view]) .back-link { display: none !important; }
