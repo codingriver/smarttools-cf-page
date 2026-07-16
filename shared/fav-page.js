@@ -1,17 +1,13 @@
 /* ================================================================================
  * shared/fav-page.js
  * ─────────────────────────────────────────────────────────────────────────────
- * 收藏夹页面通用逻辑（index1 / index2 / index3 / index4 / index5 五个风格共用）
+ * 收藏夹主页通用逻辑（Notion 单主题）
  *
  * 依赖（必须在本文件之前加载）：
  *   1. data.js                → 提供 usbDriveData / teachingData / onlineAIData /
  *                               videoData / contactData / emailData / customSections
- *   2. shared/enc-unlock.js   → 旧版加密模块（兼容保留，不再主动使用）
- *   3. shared/enc-rerender.js → 旧版加密重渲染模块（兼容保留，不再主动使用）
- *   4. shared/note-modal.js   → 卡片注释模态框（可选）
+ *   2. shared/note-modal.js   → 卡片注释模态框（可选）
  *
- * 每个页面在引入本文件之前，需要设置：
- *   <script>window.__FAV_PAGE_ID = 'indexN.html';</script>
  * ================================================================================ */
 
 
@@ -30,16 +26,6 @@
     } catch (e) {
     }
 })();
-
-
-/* ════════════════════════════════════════════════════════════════════════════════
- * 【区块 1】风格持久化
- * ════════════════════════════════════════════════════════════════════════════════ */
-try {
-    if (window.__FAV_PAGE_ID) {
-        localStorage.setItem('fav_last_style', window.__FAV_PAGE_ID);
-    }
-} catch (e) {}
 
 
 /* ════════════════════════════════════════════════════════════════════════════════
@@ -82,7 +68,8 @@ function normalizeData() {
         if (Array.isArray(window.customSections)) {
             window.customSections.forEach(function(c) {
                 // ★ P3-5: 透传 anchor 字段(老格式),fav-page 渲染时会过 __safeAnchor
-                s.push({ builtin:false, key:c.key, kind:'card', defaultLabel:c.label, label:c.label, visible:true, dynamic:!!c.dynamic, private:!!(c.private || c.encrypted), cards:c.cards||[], anchor: c.anchor || '' });
+                if (c.encrypted === true || c.enc || c._enc || c.locked === true) return;
+                s.push({ builtin:false, key:c.key, kind:'card', defaultLabel:c.label, label:c.label, visible:true, dynamic:!!c.dynamic, private:c.private === true, cards:c.cards||[], anchor: c.anchor || '' });
             });
         }
         contactDefs.forEach(function(d) {
@@ -111,26 +98,22 @@ function normalizeData() {
 
 
 /* ════════════════════════════════════════════════════════════════════════════════
- * 【区块 2.5】动态加载网站基础配置（标题/页眉/页脚）
- * 从 /api/site-config 获取用户自定义设置，若未设置则保持主题默认。
+ * 【区块 2.5】应用随 /api/data 一并下发的网站基础配置
+ * 避免首页为标题/页眉/页脚再发起一次串行 API 请求。
  * ════════════════════════════════════════════════════════════════════════════════ */
-(function () {
-    fetch('/api/site-config')
-        .then(function (r) { return r.json(); })
-        .then(function (cfg) {
-            if (!cfg.ok) return;
-            var titleEl = document.querySelector('.title');
-            if (cfg.title) {
-                document.title = cfg.title;
-                if (titleEl) titleEl.innerHTML = cfg.title;
-            }
-            var headerEl = document.querySelector('.site-header-extra');
-            if (cfg.header && headerEl) headerEl.innerHTML = cfg.header;
-            var footerEl = document.querySelector('.footer');
-            if (cfg.footer && footerEl) footerEl.innerHTML = cfg.footer;
-        })
-        .catch(function () {});
-})();
+function applySiteConfig() {
+    var cfg = window.__siteConfig;
+    if (!cfg || typeof cfg !== 'object') return;
+    var titleEl = document.querySelector('.title');
+    if (cfg.title) {
+        document.title = cfg.title;
+        if (titleEl) titleEl.innerHTML = cfg.title;
+    }
+    var headerEl = document.querySelector('.site-header-extra');
+    if (headerEl) headerEl.innerHTML = cfg.header || '';
+    var footerEl = document.querySelector('.footer');
+    if (footerEl && cfg.footer) footerEl.innerHTML = cfg.footer;
+}
 
 
 /* ════════════════════════════════════════════════════════════════════════════════
@@ -145,7 +128,7 @@ var __privateAccess  = false;              // 当前 data.js 已包含 private s
 
 function detectPrivateAccessFromLoadedData() {
     return (__allSections || []).some(function(sec) {
-        return !!(sec && (sec.private || sec.encrypted));
+        return !!(sec && sec.private);
     });
 }
 
@@ -159,11 +142,11 @@ function detectPrivateAccessFromLoadedData() {
  *   cardIndex    → 在该大类数组里的下标
  *   subIndex     → 子卡片下标（仅子卡片）
  *   emailIndex   → 邮箱 Tab 下标（仅邮箱卡）
- *   encrypted    → 旧字段：是否来自加密大类
  *   uniqueKey    → 会话级备份用的稳定 key
  * ──────────────────────────────────────────────────────────────────────────────── */
 var __cardRegistry = {};
 var __cardIdSeq    = 0;
+var __expandableRegistry = {};
 
 function __registerCard(card, meta) {
     meta = meta || {};
@@ -235,37 +218,6 @@ window.__favEmailClick = function(event) {
 
 /** 有注释的卡片类名（用于右上角小红点） */
 function __noteCls(card) { return card && card.comment ? ' has-note' : ''; }
-
-/* §13 强制推送标注徽章(2026-05-23)
- * card.pushedBy 存在 → 渲染右上角 📌 徽章,hover 显示推送人/时间,点击 → 调 /api/comment 删字段
- * cid 用作 data-cid,onclick 走 __favPushedByDismiss
- */
-/* §13 强制推送标注徽章(2026-05-23,v3 修订)
- * 前端只显示 📌 图标,hover 显示完整推送人/时间;不响应点击(删除入口仅在 config 后台)
- * 尺寸兼顾小屏:18×18,emoji 10px;title 用 \n 强制换行避免长字符串小屏被截
- */
-function __renderPushedByBadge(card, cid) {
-    if (!card || !card.pushedBy) return '';
-    var by = String(card.pushedBy);
-    var at = card.pushedAt ? String(card.pushedAt) : '';
-    // 多行 tooltip:浏览器原生支持 title 中的 \n 换行,小屏不被裁
-    var title = '管理员推送 · ' + by + (at ? '\n' + at : '') + '\n(如需移除请到 Config 后台)';
-    // 内联样式:紧凑圆形,跨主题统一
-    var style = 'position:absolute;top:5px;right:5px;z-index:5;' +
-                'background:linear-gradient(135deg,#fef3c7,#fde68a);' +
-                'color:#78350f;border:1px solid #f59e0b;border-radius:50%;' +
-                'width:18px;height:18px;display:flex;align-items:center;justify-content:center;' +
-                'font-size:10px;line-height:1;' +
-                'pointer-events:auto;cursor:help;' +
-                'box-shadow:0 1px 2px rgba(0,0,0,0.1);';
-    return '<span class="fav-pushed-badge"' +
-           ' data-cid="' + cid + '"' +
-           ' style="' + style + '"' +
-           ' title="' + __attr(title) + '"' +
-           ' aria-label="' + __attr(title) + '"' +
-           ' onclick="event.stopPropagation();event.preventDefault();return false;"' +
-           '>📌</span>';
-}
 
 // 构建当前卡片在 data.js 中的 path(与 note-modal.metaToJsonPath 同算法)
 function __favBuildCardPath(entry) {
@@ -441,14 +393,6 @@ function detectLayout() {
     return 'desktop';
 }
 
-function alignStyleSwitcher() {
-    var container = document.querySelector('.container');
-    var switcher  = document.getElementById('styleSwitcher');
-    if (!container || !switcher) return;
-    var rect = container.getBoundingClientRect();
-    switcher.style.right = (document.documentElement.clientWidth - rect.right) + 'px';
-}
-
 /** SVG 安全过滤：移除事件处理器、脚本、危险元素，防存储型 XSS */
 function sanitizeSVG(raw) {
     if (!raw || typeof raw !== 'string') return '';
@@ -465,7 +409,7 @@ function renderIcon(item, extraAttrs) {
     if (item.iconImg) {
         var safeImg = __safeImgUrl(item.iconImg);
         if (safeImg) {
-            return '<span class="link-icon" ' + extraAttrs + ' aria-hidden="true"><img src="' + __attr(safeImg) + '" alt="" onerror="this.style.display=\'none\';" /></span>';
+            return '<span class="link-icon" ' + extraAttrs + ' aria-hidden="true"><img src="' + __attr(safeImg) + '" alt="" width="24" height="24" loading="lazy" decoding="async" fetchpriority="low" onerror="this.style.display=\'none\';" /></span>';
         }
         return '<span class="link-icon" ' + extraAttrs + ' aria-hidden="true"></span>';
     }
@@ -484,7 +428,6 @@ function renderIcon(item, extraAttrs) {
 function generateCardHTML(card, meta) {
     var cid = __registerCard(card, meta || {});
     var noteCls = __noteCls(card);
-    var pushedBadge = __renderPushedByBadge(card, cid);
     var cardType = card.type || ((card.subCards && card.subCards.length) ? 'expandable' : (card.descClickable ? 'desc-clickable' : 'simple'));
 
     // ─── 类型 1：简单卡片 ──────────────────────────────────────────────
@@ -495,14 +438,12 @@ function generateCardHTML(card, meta) {
             return '<a href="' + __attr(__safeUrl(card.url)) + '" target="_blank" rel="noopener noreferrer" class="link-card' + noteCls + '" ' +
                    'data-card-id="' + cid + '" ' +
                    'onclick="return __favLinkClick(\'' + cid + '\', event)">' +
-                pushedBadge +
                 renderIcon(card) +
                 '<h3 class="link-title">' + __txt(card.title) + '</h3>' +
                 '<p class="link-desc">' + __txt(card.desc || '') + '</p></a>';
         }
         return '<div class="link-card' + noteCls + '" data-card-id="' + cid + '" ' +
                'onclick="__favCardOpen(\'' + cid + '\')">' +
-            pushedBadge +
             renderIcon(card) +
             '<h3 class="link-title">' + __txt(card.title) + '</h3>' +
             '<p class="link-desc">' + __txt(card.desc || '') + '</p></div>';
@@ -517,14 +458,12 @@ function generateCardHTML(card, meta) {
             return '<a href="' + __attr(__safeUrl(card.url)) + '" target="_blank" rel="noopener noreferrer" class="link-card' + noteCls + '" ' +
                    'data-card-id="' + cid + '" ' +
                    'onclick="return __favLinkClick(\'' + cid + '\', event)">' +
-                pushedBadge +
                 renderIcon(card) +
                 '<h3 class="link-title">' + __txt(card.title) + '</h3>' +
                 '<p class="link-desc-clickable"' + descUrlAttr + '>' + __txt(card.descClickable) + '</p></a>';
         }
         return '<div class="link-card' + noteCls + '" data-card-id="' + cid + '" ' +
                'onclick="__favCardOpen(\'' + cid + '\')">' +
-            pushedBadge +
             renderIcon(card) +
             '<h3 class="link-title">' + __txt(card.title) + '</h3>' +
             '<p class="link-desc-clickable"' + descUrlAttr + '>' + __txt(card.descClickable) + '</p></div>';
@@ -539,19 +478,16 @@ function generateCardHTML(card, meta) {
         } else if (card.desc) {
             descHTML = '<p class="link-desc">' + __txt(card.desc) + '</p>';
         }
-        // 子卡片继承主卡片的 sectionKey + cardIndex，加 subIndex
-        var subHTML = '';
-        (card.subCards || []).forEach(function(sc, idx) {
-            subHTML += generateSubCardHTML(sc, {
-                sectionKey: (meta && meta.sectionKey) || '',
-                cardIndex:  (meta && meta.cardIndex),
-                subIndex:   idx,
-                encrypted:  (meta && meta.encrypted)
-            });
-        });
-
         // 中键全区域后台打开:有 card.url 时主卡用 <a> 包裹,左键分区点击靠 handleCardClick + preventDefault
-        var subcardsId = __attr(card.id) + '-subcards';
+        // 子卡片数量可能很大，首次展开时再生成 DOM，避免首屏构建数百个隐藏节点。
+        var subcardsId = '__subcards_' + cid;
+        __expandableRegistry[subcardsId] = {
+            card: card,
+            meta: {
+                sectionKey: (meta && meta.sectionKey) || '',
+                cardIndex: meta && meta.cardIndex
+            }
+        };
         var expandZone = '<div class="expand-zone" onclick="event.stopPropagation(); event.preventDefault(); handleExpandZone(\'' + subcardsId + '\', this)"></div>' +
                          '<button class="expand-btn" title="展开更多"></button>';
         if (card.url) {
@@ -560,23 +496,21 @@ function generateCardHTML(card, meta) {
                    'class="link-card link-card-with-expand' + noteCls + '" ' +
                    'data-card-id="' + cid + '" ' +
                    'onclick="handleCardClick(event, \'' + cid + '\', \'' + subcardsId + '\')">' +
-                pushedBadge +
                 renderIcon(card) +
                 '<h3 class="link-title">' + __txt(card.title) + '</h3>' +
                 descHTML +
                 expandZone + '</a>' +
-                '<div class="sub-cards" id="' + subcardsId + '">' + subHTML + '</div></div>';
+                '<div class="sub-cards" id="' + subcardsId + '"></div></div>';
         }
         return '<div class="card-container">' +
             '<div class="link-card link-card-with-expand' + noteCls + '" ' +
                  'data-card-id="' + cid + '" ' +
                  'onclick="handleCardClick(event, \'' + cid + '\', \'' + subcardsId + '\')">' +
-            pushedBadge +
             renderIcon(card) +
             '<h3 class="link-title">' + __txt(card.title) + '</h3>' +
             descHTML +
             expandZone + '</div>' +
-            '<div class="sub-cards" id="' + subcardsId + '">' + subHTML + '</div></div>';
+            '<div class="sub-cards" id="' + subcardsId + '"></div></div>';
     }
     return '';
 }
@@ -635,13 +569,12 @@ function generateSubCardHTML(sc, meta) {
  * 【区块 6】网格生成器
  * ════════════════════════════════════════════════════════════════════════════════ */
 
-function generateStaticGrid(data, sectionKey, encrypted) {
+function generateStaticGrid(data, sectionKey) {
     var html = '<div class="links-grid">';
     data.forEach(function(card, idx) {
         html += generateCardHTML(card, {
             sectionKey: sectionKey || '',
-            cardIndex:  idx,
-            encrypted:  !!encrypted
+            cardIndex:  idx
         });
     });
     return html + '</div>';
@@ -661,7 +594,7 @@ function getVisibleCount(prefix, layout) {
     return 999;
 }
 
-function generateDynamicGrid(prefix, data, layout, encrypted) {
+function generateDynamicGrid(prefix, data, layout) {
     var count   = getVisibleCount(prefix, layout);
     var visible = data.slice(0, count);
     var hidden  = data.slice(count);
@@ -670,8 +603,7 @@ function generateDynamicGrid(prefix, data, layout, encrypted) {
     visible.forEach(function(card, idx) {
         html += generateCardHTML(card, {
             sectionKey: prefix,
-            cardIndex:  idx,
-            encrypted:  !!encrypted
+            cardIndex:  idx
         });
     });
     html += '</div>';
@@ -683,8 +615,7 @@ function generateDynamicGrid(prefix, data, layout, encrypted) {
         hidden.forEach(function(card, idx) {
             html += generateCardHTML(card, {
                 sectionKey: prefix,
-                cardIndex:  count + idx,
-                encrypted:  !!encrypted
+                cardIndex:  count + idx
             });
         });
         html += '</div>';
@@ -789,6 +720,22 @@ function handleExpandZone(subcardId, zone) {
     if (btn) toggleSubCards(subcardId, btn);
 }
 
+function ensureSubCardsRendered(subcardId) {
+    var container = document.getElementById(subcardId);
+    var record = __expandableRegistry[subcardId];
+    if (!container || !record || container.getAttribute('data-rendered') === '1') return;
+    var html = '';
+    (record.card.subCards || []).forEach(function(sc, idx) {
+        html += generateSubCardHTML(sc, {
+            sectionKey: record.meta.sectionKey,
+            cardIndex: record.meta.cardIndex,
+            subIndex: idx
+        });
+    });
+    container.innerHTML = html;
+    container.setAttribute('data-rendered', '1');
+}
+
 function toggleSubCards(subcardId, button) {
     var subcards      = document.getElementById(subcardId);
     var overlay       = document.getElementById('overlay');
@@ -813,6 +760,7 @@ function toggleSubCards(subcardId, button) {
         overlay.classList.remove('active');
         currentExpanded = null;
     } else {
+        ensureSubCardsRendered(subcardId);
         subcards.classList.add('expanded');
         button.classList.add('expanded');
         cardContainer.classList.add('active');
@@ -898,7 +846,7 @@ function switchEmail(index) {
         if (currentEmailData.iconImg) {
             var safeMailImg = __safeImgUrl(currentEmailData.iconImg);
             emailIconEl.innerHTML = safeMailImg
-                ? '<img src="' + __attr(safeMailImg) + '" alt="" />'
+                ? '<img src="' + __attr(safeMailImg) + '" alt="" width="24" height="24" loading="lazy" decoding="async" fetchpriority="low" />'
                 : '';
             emailIconEl.className = 'link-icon';
         } else if (currentEmailData.icon && currentEmailData.icon.charAt(0) === '<') {
@@ -956,11 +904,11 @@ function openEmail(url) {
 
 
 /* ════════════════════════════════════════════════════════════════════════════════
- * 【区块 10】对外 API（note-modal.js 使用；旧 enc-rerender 兼容保留）
+ * 【区块 10】对外 API（note-modal.js 使用）
  * ════════════════════════════════════════════════════════════════════════════════ */
 window.__favPageAPI = {
     getLayout: function() { return currentLayout; },
-    // ★ 重渲染单个 section（供 enc-rerender 调用）
+    // ★ 重渲染单个 section
     renderSection: function(sec, layout) {
         var contentEl = document.getElementById(sec.key + '-content');
         if (!contentEl) return;
@@ -982,26 +930,6 @@ window.__favPageAPI = {
         currentExpanded = null;
     }
 };
-
-
-/* ════════════════════════════════════════════════════════════════════════════════
- * 【区块 11】右上角风格切换下拉菜单
- * ════════════════════════════════════════════════════════════════════════════════ */
-function toggleStyleMenu(e) {
-    e.stopPropagation();
-    var menu = document.getElementById('styleMenu');
-    var btn  = document.getElementById('styleBtn');
-    var isOpen = menu.classList.contains('menu-open');
-    if (isOpen) {
-        menu.classList.remove('menu-open');
-        btn.classList.remove('menu-open');
-        btn.setAttribute('aria-expanded', 'false');
-    } else {
-        menu.classList.add('menu-open');
-        btn.classList.add('menu-open');
-        btn.setAttribute('aria-expanded', 'true');
-    }
-}
 
 
 /* ════════════════════════════════════════════════════════════════════════════════
@@ -1041,9 +969,9 @@ function renderOneSection(sec, layout) {
     } else {
         // kind === 'card'
         if (sec.dynamic) {
-            contentEl.innerHTML = generateDynamicGrid(sec.key, cards, layout, !!sec.encrypted);
+            contentEl.innerHTML = generateDynamicGrid(sec.key, cards, layout);
         } else {
-            contentEl.innerHTML = generateStaticGrid(cards, sec.key, !!sec.encrypted);
+            contentEl.innerHTML = generateStaticGrid(cards, sec.key);
         }
     }
 }
@@ -1097,6 +1025,7 @@ async function bootFavPage() {
             await window.__SmartToolsDataReady;
         }
     } catch (e) {}
+    applySiteConfig();
     normalizeData();
     __allSections = window.__sections || [];
     try {
@@ -1108,18 +1037,6 @@ async function bootFavPage() {
         }
     } catch (e) {}
 
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('#styleSwitcher')) {
-            var menu = document.getElementById('styleMenu');
-            var btn  = document.getElementById('styleBtn');
-            if (menu && menu.classList.contains('menu-open')) {
-                menu.classList.remove('menu-open');
-                btn.classList.remove('menu-open');
-                btn.setAttribute('aria-expanded', 'false');
-            }
-        }
-    });
-
     currentLayout = detectLayout();
     __privateAccess = detectPrivateAccessFromLoadedData();
 
@@ -1128,12 +1045,6 @@ async function bootFavPage() {
     if (emailSec && emailSec.cards && emailSec.cards.length) currentEmailData = emailSec.cards[0];
 
     renderAllSections(currentLayout);
-
-    alignStyleSwitcher();
-    var containerEl = document.querySelector('.container');
-    if (typeof ResizeObserver !== 'undefined' && containerEl) {
-        new ResizeObserver(function() { alignStyleSwitcher(); }).observe(containerEl);
-    }
 
     var ol = document.getElementById('overlay');
     if (ol) {
@@ -1205,13 +1116,11 @@ window.addEventListener('resize', function() {
             if (sec.kind === 'card' && sec.dynamic) {
                 var contentEl = document.getElementById(sec.key + '-content');
                 if (contentEl) {
-                    contentEl.innerHTML = generateDynamicGrid(sec.key, sec.cards || [], currentLayout, !!sec.encrypted);
+                    contentEl.innerHTML = generateDynamicGrid(sec.key, sec.cards || [], currentLayout);
                 }
             }
         });
     }
-
-    requestAnimationFrame(alignStyleSwitcher);
 });
 
 
@@ -1224,8 +1133,6 @@ window.addEventListener('resize', function() {
         '.sub-card',
         '.back-link',
         '.expand-section-btn',
-        '.style-btn',
-        '.style-opt',
         '.email-tab',
         '#backHomeBtn',
         '.error-home-btn',
@@ -1233,8 +1140,6 @@ window.addEventListener('resize', function() {
     ].join(',');
 
     function createRipple(e, target) {
-        if (target.classList.contains('style-opt-active')) return;
-
         var rect  = target.getBoundingClientRect();
         var point = e.touches && e.touches[0] ? e.touches[0] : e;
         var x = point.clientX - rect.left;

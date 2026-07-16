@@ -757,23 +757,5 @@ var sections = [
     },
 
     // ==================== 自定义大类（可在配置后台增删改） ====================
-    // ----- 💟私人项目 -----
-    {
-        builtin: false,
-        key: 'custom_moyq5cad_ezc0r',
-        kind: 'card',
-        dynamic: true,
-        label: '💟私人项目',
-        visible: true,
-        private: true,
-        enc: {
-            v: 1,
-            alg: 'AES-GCM-256/PBKDF2-SHA256',
-            iter: 300000,
-            salt: 't1C3Ile2V4q6D54R5RWXpg==',
-            iv: '2UjhlSZfQxXcCJu0',
-            data: 'zVmerLu2YdqhNlA5ec5jsOuPgTiyhp9xLqNLkbICQ2dpAE6uxn6tPXuS3yplWYgX8cyPRllpmvFkE1slhNMsif+zWwwUZV9m+v4K9Sx/h9ttJysLjdvY/gnkeshF2UtVadLTJocdElEuMDNZJysLUyEY+4RmhVS86bFfM0ewilVkTw+Zxz2VWEWBImx1s8gHb3pLSco4GjfRd6vl412pF7ju9smeZZob66A0aD6dhWil0FbUuiPxFyqv+mW49vzEmIuTAYtL/v45KNY6Qk0QCPT3SOOTvFRnZmf7q3n/QQEQERgTvEHdteEbjnNC/3m9Eay0mEwIFZjo6yGIFJmsPYnKIvrrDZ5oYUs6bigOZ8VKSVtXTwXqOYv0UTQJbvA5248wPBEfY3nF0bDr6/ic9GtTD4CJGw0yC0kyfEF4xs9MXn4etd6PQUqd6H0ELQBCUcFyTe3x9XYd9drwtgSad4LIouyA1LpfJcT7NTVNOeYZvkAM14nQtJDm61r6QubBgkSdF57plIANXjsIJPfs0HTNez55SKsHfGJJk6puwCdTBFOqy2X7zh44RhjVNo+xXc+o0i0yebU4aonaGTAOP1hNUSTdkVHJ5bEtZ2kahsbzVkdquBBO9SQ83yqDamEO406nTZvl0+KrcpW8dtZfP1/gcVD4mk8m02PG1wrUYiKPEx5314+rytGftkpkYGUukQzTYl8MOphTuK9MpC+6/NTisJPAMr896zSCazTHeZLkD+LJLG9pG551C5iIN/c0NFSqi5QMvTWWcVpCDIR1lrPzCvEDUqDdBgDXEywPJV+lTpTWTNQnn1yRZ6U8JX4lC96dO7tBhBTlFCm8gx96DEAKidzXYyxanN2keZEoa3KMfbkeBwCd4Q1Oaf4b/VKGZngj5P/NBn8xs4C/sTHbyI6EuG72zA2FVii4HOjdptIggbij6qRVZwlTgGK7XJKoct1fl2QqaM/W1B8m2eHUMkbrSsYC6ljPiai7pokjxyhbuXs39vaxf5jr8DZLWzTF6cnrVvR8dheRP6D5m0WRjFjdm1vp8UDnjSsFr1RWEvGfPoux8r4wmMwf+ZEUUtn/p3oY3mHO6cJYRDFIDr5tdkeZIsOqY32rBeuyl4MUuGgAu2POSNCOQPQg3ReSjY2i1apLM++QBk9sMj2WjUyVX2qvwu0eJeAvoXQyoWrIxLJuyU8SfH54ESxIPTslAFpGFhlcOtLrTep1wRZ2sP/NYmUYQwlpGpbbFgkf8h23e4gCOJqsSmJPnTLhWAG6w1AUZh4QndHHMRjJyeIVbuidCCvnM8wh6YEoZ+ZJ74zKVAfOMTRxmzMrPRvA0+KSb/BYfckjcoYztLQZnvPl1JKRPSKKzexDJ8R8rWebT1ORDL6RSU5N7is7Cd9DZdlEPjQPWQQipA8HKAZHRIWXdyuM4Qph2kCu6bUUYQPLC0azo9zGpdmhinDGe6aunc+9OApXIpylbg5G4L/SnPV/+cJlOVDTLFDSe0NaBKYEVVD2XvMkgwFA0r9S45pa4wnKSZadoGArcSuoV7UJqfo0ny9i8PWXsDrrNCtnu9cbn6pAMxbxJ+0D2zn8vBX8K1Rbp9CQGRFiX4GlN94ZdxLDUhyPXquUYxBuJbUL/a0KrqyPflPQ5jy4T5qUu2wtYgfP/Y5YHdxpl+TbQ6F7GskxxK/3HjRAR/0vucd3IrmD+GDh3Kq9sh0ayeWfSSNVLLzTO3J4B9YcDRnslpEXbUT7PmurBjBADCkHEC+DZPlmiZptoiYdCcDF6MRtzxfq/PyB8ZzcEUia+e4Tcb9dUCMNxDO/znQLOZdr/tBtZar5QjG/u8Nr62qBvAuDdx7pNHTHkRALcBTyVnyC7lu/19KAVbhZ+H3TLK1Ng1lWDNiM614kVsKZ0xZh5RzD3eQWun2Sw08BvwuTFqG3K61a3mSx1ienpcvNqZqt8iHgN8Tf2SVFHam5nRBG8j659GUU/6azxDsk8xxJ6CeYjsCTigLMnkdYBWzC+1bYFQKQ/+4VjQtWrueeTf9Ec1qk7d3PZYvoqw/Z'
-        },
-        cards: []
-    }
+
 ];

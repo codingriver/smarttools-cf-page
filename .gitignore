@@ -12,6 +12,9 @@ Thumbs.db
 # Cloudflare 本地缓存
 .wrangler/
 
+# 生产发布目录（由 npm run build 生成）
+dist/
+
 # 数据备份(本地导出的归档,可能含真实卡片数据)
 databak/*.js
 databak/*.zip
@@ -34,3 +37,4 @@ archive_*.zip
 *.swp
 *.swo
 *~
+/screenshot

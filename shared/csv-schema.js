@@ -219,10 +219,7 @@
         ];
     }
 
-    function sectionsToCSV(sections, opts) {
-        opts = opts || {};
-        var includeEncrypted = opts.includeEncrypted === true;
-
+    function sectionsToCSV(sections) {
         if (!Array.isArray(sections)) {
             throw new Error('sectionsToCSV: sections must be an array');
         }
@@ -232,16 +229,6 @@
         for (var s = 0; s < sections.length; s++) {
             var sec = sections[s];
             if (!sec || !sec.key) continue;
-
-            // v2-5: 加密 section 处理
-            if (sec.encrypted === true) {
-                if (!includeEncrypted) continue;
-                // 已要求包含但内容未解锁 → 抛错（B0 不做密钥派生）
-                // 判定"已解锁"的标志：cards 已经是明文数组（非 enc 字符串结构）
-                if (!Array.isArray(sec.cards)) {
-                    throw new Error('Encrypted section not unlocked: ' + sec.key);
-                }
-            }
 
             var cards = Array.isArray(sec.cards) ? sec.cards : [];
             for (var c = 0; c < cards.length; c++) {

@@ -1,459 +1,165 @@
-// GET /api/data                → 返回 data.js 文本（按身份选 namespace）
-// GET /api/data?format=json    → 返回 JSON { ok, content, source, ... }
-// GET /api/data?source=kv|static → 强制使用指定数据源（仅对当前身份的 namespace 有效）
-// GET /api/data?u=<slug>       → A1.5 公开访问模式（忽略 cookie，返回该 slug 用户的 user:<uid>:data_js）
-//
-// A0 v2 改造（2026-05-17）：
-//   - 按身份选 KV namespace:
-//     * 未登录 / admin → admin:data_js（缺失回退老 data_js 过渡期）
-//     * user            → user:<uid>:data_js（缺失返回空白 stub，绝不回退 admin，严格 D2=B）
-//   - 缓存按身份分:
-//     * 未登录          → public, max-age=30, s-maxage=60（保 P3-7 行为；5 个 indexN 受益）
-//     * 已登录          → private, no-store（避免 CDN 把 admin 内容缓存给 alice）
-//   - data_source 也按身份选 namespace（admin:data_source / user:<uid>:data_source）
-//   - format=json 路径走 no-store（同 P3-7）
-//
-// A1.5 改造（2026-05-18）：?u=<slug> 公开访问
-//   - 优先于 cookie 鉴权;slug 命中且 publicEnabled=true → 走 user:<uid>:* namespace（忽略 cookie）
-//   - slug 不存在 / publicEnabled=false / 格式不合法 → 静默回退到默认逻辑（D9=b，不暴露失败原因）
-//   - IP 限速 lockout:ipublic:<ip>（10 次/30 分钟 → 锁 60 分钟）防 slug 枚举
-//   - 响应头 X-Public-Slug 标识当前模式（前端用它判断公开访问态）
-
-import { jsonResponse, getPayload } from '../_shared/auth.js';
-import { isValidSlug, getUserBySlug, lookupOldSlugRedirect } from '../_shared/slug.js';
+import { getCookieToken, getPayload, jsonResponse } from '../_shared/auth.js';
 import { ensureDataMeta, makeDataEtag, sha256HexText } from '../_shared/data-meta.js';
-import { readSplitSnapshot } from '../_shared/data-split.js';
+import { readSiteConfig } from '../_shared/site-config.js';
+import {
+    discardLegacyEncryptedSections,
+    readSplitSnapshot,
+    stripPrivateSections
+} from '../_shared/data-split.js';
 
-const OLD_DATA_KEY    = 'data_js';
-const OLD_SOURCE_KEY  = 'data_source';
-const ADMIN_DATA_KEY  = 'admin:data_js';
-const ADMIN_SOURCE_KEY = 'admin:data_source';
+const DATA_KEY = 'admin:data_js';
+const SOURCE_KEY = 'admin:data_source';
+const EMPTY_STUB = `/* data.js 尚未初始化 */\nvar sections = [];\n`;
+const PUBLIC_CACHE_VERSION = 'v1';
 
-// A1.5 — 公开 slug IP 限速参数
-const SLUG_LOCKOUT_PREFIX = 'lockout:ipublic:';
-const SLUG_MAX_ATTEMPTS   = 10;    // 失败上限
-const SLUG_WINDOW_SECONDS = 1800;  // 失败计数窗口 30 分钟
-const SLUG_LOCK_SECONDS   = 3600;  // 达上限后锁定 60 分钟
-
-// 空白 stub（user 首次访问 / KV 完全为空的兜底）
-const EMPTY_STUB = `/* data.js 尚未初始化 */
-var usbDriveData = [];
-var teachingData = [];
-var onlineAIData = [];
-var videoData = [];
-var emailData = [];
-var contactData = [];
-var customSections = [];
-`;
-
-function userDataKey(uid)   { return 'user:' + uid + ':data_js'; }
-function userSourceKey(uid) { return 'user:' + uid + ':data_source'; }
-
-function findMatchingBracket(src, openIdx, openChar, closeChar) {
-    let depth = 0;
-    let quote = null;
-    let escape = false;
-    let lineComment = false;
-    let blockComment = false;
-    for (let i = openIdx; i < src.length; i++) {
-        const ch = src[i];
-        const next = src[i + 1];
-        if (lineComment) {
-            if (ch === '\n') lineComment = false;
-            continue;
-        }
-        if (blockComment) {
-            if (ch === '*' && next === '/') { blockComment = false; i++; }
-            continue;
-        }
-        if (quote) {
-            if (escape) { escape = false; continue; }
-            if (ch === '\\') { escape = true; continue; }
-            if (ch === quote) quote = null;
-            continue;
-        }
-        if (ch === '/' && next === '/') { lineComment = true; i++; continue; }
-        if (ch === '/' && next === '*') { blockComment = true; i++; continue; }
-        if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
-        if (ch === openChar) depth++;
-        else if (ch === closeChar) {
-            depth--;
-            if (depth === 0) return i;
-        }
-    }
-    return -1;
+function serializeForScript(value) {
+    return JSON.stringify(value)
+        .replace(/</g, '\\u003c')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
 }
 
-function splitTopLevelItems(src) {
-    const items = [];
-    let start = 0;
-    let depthBrace = 0;
-    let depthBracket = 0;
-    let depthParen = 0;
-    let quote = null;
-    let escape = false;
-    let lineComment = false;
-    let blockComment = false;
-    for (let i = 0; i < src.length; i++) {
-        const ch = src[i];
-        const next = src[i + 1];
-        if (lineComment) {
-            if (ch === '\n') lineComment = false;
-            continue;
-        }
-        if (blockComment) {
-            if (ch === '*' && next === '/') { blockComment = false; i++; }
-            continue;
-        }
-        if (quote) {
-            if (escape) { escape = false; continue; }
-            if (ch === '\\') { escape = true; continue; }
-            if (ch === quote) quote = null;
-            continue;
-        }
-        if (ch === '/' && next === '/') { lineComment = true; i++; continue; }
-        if (ch === '/' && next === '*') { blockComment = true; i++; continue; }
-        if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
-        if (ch === '{') depthBrace++;
-        else if (ch === '}') depthBrace--;
-        else if (ch === '[') depthBracket++;
-        else if (ch === ']') depthBracket--;
-        else if (ch === '(') depthParen++;
-        else if (ch === ')') depthParen--;
-        else if (ch === ',' && depthBrace === 0 && depthBracket === 0 && depthParen === 0) {
-            items.push(src.slice(start, i));
-            start = i + 1;
-        }
-    }
-    const tail = src.slice(start);
-    if (tail.trim()) items.push(tail);
-    return items;
+function publicCacheKey(request) {
+    const url = new URL('/api/data', request.url);
+    url.searchParams.set('__smarttools_public_cache', PUBLIC_CACHE_VERSION);
+    return new Request(url.toString(), { method: 'GET' });
 }
 
-function stripPrivateSections(content) {
-    if (!content || typeof content !== 'string') return content;
-    const m = /var\s+sections\s*=\s*\[/.exec(content);
-    if (!m) return content;
-    const arrayStart = m.index + m[0].lastIndexOf('[');
-    const arrayEnd = findMatchingBracket(content, arrayStart, '[', ']');
-    if (arrayEnd < 0) return content;
-    const body = content.slice(arrayStart + 1, arrayEnd);
-    const items = splitTopLevelItems(body);
-    const publicItems = items.filter(item => !/\b(?:private|encrypted)\s*:\s*true\b/.test(item));
-    const nextBody = publicItems.length ? '\n' + publicItems.join(',') + '\n' : '\n';
-    return content.slice(0, arrayStart + 1) + nextBody + content.slice(arrayEnd);
-}
-
-function getClientIP(request) {
-    const cf = request.headers.get('CF-Connecting-IP');
-    if (cf) return cf.trim();
-    const xff = request.headers.get('X-Forwarded-For');
-    if (xff) {
-        const first = xff.split(',')[0];
-        if (first) return first.trim();
-    }
-    return 'unknown';
-}
-
-async function readSlugLockout(env, ip) {
-    if (!env.FAV_KV) return null;
+async function readStaticData(request, env) {
+    const url = new URL('/data.js', request.url);
     try {
-        const r = await env.FAV_KV.getWithMetadata(SLUG_LOCKOUT_PREFIX + ip, { type: 'text' });
-        if (!r || r.value == null) return null;
-        const count = parseInt(r.value, 10) || 0;
-        const expireAt = (r.metadata && r.metadata.expireAt) || 0;
-        return { count, expireAt };
-    } catch {
-        return null;
-    }
-}
-
-async function recordSlugFailure(env, ip) {
-    if (!env.FAV_KV) return;
-    try {
-        const cur = await readSlugLockout(env, ip);
-        const nowSec = Math.floor(Date.now() / 1000);
-        const next = (cur ? cur.count : 0) + 1;
-        // 达阈值后切换到长锁定窗口(60 分钟),否则用 30 分钟滑动窗口
-        const ttl = next >= SLUG_MAX_ATTEMPTS ? SLUG_LOCK_SECONDS : SLUG_WINDOW_SECONDS;
-        const expireAt = nowSec + ttl;
-        await env.FAV_KV.put(SLUG_LOCKOUT_PREFIX + ip, String(next), {
-            expirationTtl: ttl,
-            metadata: { expireAt }
-        });
+        if (env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+            const response = await env.ASSETS.fetch(url.toString());
+            if (response.ok) return await response.text();
+        }
     } catch {}
+    return null;
 }
 
-async function clearSlugFailure(env, ip) {
-    if (!env.FAV_KV) return;
-    try { await env.FAV_KV.delete(SLUG_LOCKOUT_PREFIX + ip); } catch {}
-}
-
-export async function onRequestGet({ request, env }) {
+async function readData(request, env) {
     const url = new URL(request.url);
-    const format = url.searchParams.get('format') || 'js';
-    const forceSource = url.searchParams.get('source');
-    const slugParam = url.searchParams.get('u');
-
-    // ───── A1.5 公开访问 slug 解析(优先于 cookie)─────
-    let publicSlug = null;   // 命中的 slug(改名场景下是 newSlug)
-    let publicUid  = null;   // 命中的 uid
-    let publicRole = null;   // 命中用户的角色(admin/user)— 决定 namespace
-    let publicOldSlug = null; // A1.5 增强 D:命中老 slug 重定向时,记录原始请求 slug
-    let slugIp     = null;
-
-    if (slugParam) {
-        slugIp = getClientIP(request);
-        // 先尝试解析 slug,命中即放行(真实用户优先于限速 — 避免恶意扫描影响合法访问)
-        if (isValidSlug(slugParam)) {
-            const found = await getUserBySlug(env, slugParam);
-            if (found) {
-                publicSlug = slugParam;
-                publicUid  = found.uid;
-                publicRole = found.role || 'user';
-                await clearSlugFailure(env, slugIp);
-            } else {
-                // A1.5 增强 D:常规查找失败 → 试老 slug 重定向(30 天 TTL 内)
-                const newSlug = await lookupOldSlugRedirect(env, slugParam);
-                if (newSlug && newSlug !== slugParam) {
-                    const redirected = await getUserBySlug(env, newSlug);
-                    if (redirected) {
-                        publicSlug = newSlug;
-                        publicUid  = redirected.uid;
-                        publicRole = redirected.role || 'user';
-                        publicOldSlug = slugParam;  // 标记给前端显示 banner
-                        await clearSlugFailure(env, slugIp);
-                    }
-                }
-            }
-        }
-        // slug 未命中(无效格式 / 不存在 / 已禁用 / 老 slug 重定向也失败)→ 检查 lockout + 累加失败计数
-        if (!publicSlug) {
-            const lock = await readSlugLockout(env, slugIp);
-            const nowSec = Math.floor(Date.now() / 1000);
-            // 已锁定 → 不静默回退,直接 429(此时确认是恶意扫描)
-            if (lock && lock.count >= SLUG_MAX_ATTEMPTS && lock.expireAt > nowSec) {
-                return jsonResponse(
-                    { ok: false, error: '请求过于频繁,请稍后再试' },
-                    429,
-                    { 'Retry-After': String(lock.expireAt - nowSec) }
-                );
-            }
-            await recordSlugFailure(env, slugIp);
-            // 静默回退到默认逻辑(D9=b),不暴露失败原因
-        }
-    }
-
-    // ───── 决定 namespace ─────
-    let ns, uid, isLoggedIn, role;
-    let isPublicSlugMode = false;
-
-    if (publicSlug) {
-        // 公开 slug 模式 — 忽略 cookie,按目标用户的 role 分流 namespace
-        // admin 的 slug → 走 admin namespace(读 admin:data_js,与 admin 登录后看到的一致)
-        // user  的 slug → 走 user namespace(读 user:<uid>:data_js)
-        uid = publicUid;
-        isLoggedIn = false;
-        role = publicRole;
-        ns = (publicRole === 'admin') ? 'admin' : 'user';
-        isPublicSlugMode = true;
-    } else {
-        // 原 cookie 路径(slug 失败时静默回退至此)
-        const payload = await getPayload(request, env);
-        isLoggedIn = !!payload;
-        role = isLoggedIn ? (payload.role || 'user') : null;
-        uid  = isLoggedIn ? (payload.uid != null ? payload.uid : payload.u) : null;
-        ns = (role === 'user') ? 'user' : 'admin';
-    }
-
-    // ───── 选 source / data key ─────
-    let dataKey, sourceKey, fallbackOldDataKey = null;
-    if (ns === 'admin') {
-        dataKey   = ADMIN_DATA_KEY;
-        sourceKey = ADMIN_SOURCE_KEY;
-        fallbackOldDataKey = OLD_DATA_KEY;
-    } else {
-        dataKey   = userDataKey(uid);
-        sourceKey = userSourceKey(uid);
-    }
-
-    // 并行读 source + data；split snapshot 命中时优先用快照，避免按分类多 key 聚合。
-    let source = 'static';
+    const forced = url.searchParams.get('source');
+    let configured = 'static';
     let kvContent = null;
+
     if (env.FAV_KV) {
-        const [saved, dataResult, splitSnapshot] = await Promise.all([
-            env.FAV_KV.get(sourceKey),
-            env.FAV_KV.get(dataKey),
-            readSplitSnapshot(env, ns)
+        const [saved, data, snapshot] = await Promise.all([
+            env.FAV_KV.get(SOURCE_KEY),
+            env.FAV_KV.get(DATA_KEY),
+            readSplitSnapshot(env, 'admin')
         ]);
-        if (saved === 'kv' || saved === 'static') source = saved;
-        kvContent = splitSnapshot || dataResult || null;
-
-        // admin 命名空间下的迁移期回退:admin:* 没有时,读老 key
-        if (ns === 'admin') {
-            if (kvContent == null && fallbackOldDataKey) {
-                const legacy = await env.FAV_KV.get(fallbackOldDataKey);
-                if (legacy != null) kvContent = legacy;
-            }
-            if (source !== 'kv' && source !== 'static') {
-                const legacySrc = await env.FAV_KV.get(OLD_SOURCE_KEY);
-                if (legacySrc === 'kv' || legacySrc === 'static') source = legacySrc;
-            }
-        }
-    }
-    if (forceSource === 'kv' || forceSource === 'static') source = forceSource;
-
-    let content = null;
-    let actualSource = source;
-
-    if (source === 'kv' && env.FAV_KV) {
-        content = kvContent;
-        if (!content) {
-            actualSource = 'static-fallback';
-        }
+        if (saved === 'kv' || saved === 'static') configured = saved;
+        kvContent = snapshot || data || null;
     }
 
-    // 读取仓库静态 data.js(KV 为空 或 source=static 时)
-    // 注意:user namespace 不走这条路径——user 没有 KV 数据就直接看空白 stub
-    if (!content && ns === 'admin') {
-        const fallbackUrl = new URL('/data.js', request.url);
-        try {
-            if (env.ASSETS && typeof env.ASSETS.fetch === 'function') {
-                const r = await env.ASSETS.fetch(fallbackUrl.toString());
-                if (r.ok) content = await r.text();
-            }
-        } catch {}
-        if (!content) {
-            try {
-                const r = await fetch(fallbackUrl.toString(), { cf: { cacheTtl: 0 } });
-                if (r.ok) content = await r.text();
-            } catch {}
-        }
-    }
+    const selected = forced === 'kv' || forced === 'static' ? forced : configured;
+    let content = selected === 'kv' ? kvContent : null;
+    let actualSource = selected;
 
-    // 兜底
     if (!content) {
-        content = EMPTY_STUB;
-        actualSource = (ns === 'user') ? 'user-empty' : 'empty';
+        content = await readStaticData(request, env);
+        actualSource = content ? (selected === 'kv' ? 'static-fallback' : 'static') : 'empty';
+    }
+    return {
+        content: discardLegacyEncryptedSections(content || EMPTY_STUB),
+        configured: selected,
+        actualSource
+    };
+}
+
+export async function onRequestGet(context) {
+    const { request, env } = context;
+    const url = new URL(request.url);
+    const format = url.searchParams.get('format');
+    const forcedSource = url.searchParams.get('source');
+    const hasAuthCookie = !!getCookieToken(request);
+    const cacheEligible = !hasAuthCookie && !format && !forcedSource && typeof caches !== 'undefined';
+    const cache = cacheEligible ? caches.default : null;
+    const cacheKey = cacheEligible ? publicCacheKey(request) : null;
+
+    if (cache && cacheKey) {
+        const cached = await cache.match(cacheKey);
+        if (cached) {
+            const headers = new Headers(cached.headers);
+            headers.set('X-SmartTools-Cache', 'HIT');
+            return new Response(cached.body, { status: cached.status, headers });
+        }
     }
 
-    const canViewPrivateSections = isLoggedIn && !isPublicSlugMode;
-    const responseContent = canViewPrivateSections ? content : stripPrivateSections(content);
-    const dataMetaNs = ns === 'admin' ? 'admin' : `user:${uid}`;
+    const payloadPromise = hasAuthCookie ? getPayload(request, env) : Promise.resolve(null);
+    const [payload, loaded, siteConfig] = await Promise.all([
+        payloadPromise,
+        readData(request, env),
+        readSiteConfig(env)
+    ]);
+    const isAdmin = !!payload;
+    const fullContent = loaded.content;
+    const responseContent = isAdmin ? fullContent : stripPrivateSections(fullContent);
+
     let fullMeta;
-    if (actualSource === 'kv' && env.FAV_KV) {
-        fullMeta = await ensureDataMeta(env, dataMetaNs, content);
+    if (loaded.actualSource === 'kv' && env.FAV_KV) {
+        fullMeta = await ensureDataMeta(env, 'admin', fullContent);
     } else {
-        const staticHash = await sha256HexText(content);
+        const hash = await sha256HexText(fullContent);
         fullMeta = {
-            version: staticHash,
-            hash: staticHash,
-            etag: makeDataEtag(staticHash, 'full'),
-            size: String(content || '').length
+            version: hash,
+            hash,
+            etag: makeDataEtag(hash, 'full'),
+            size: fullContent.length
         };
     }
-    const responseHash = canViewPrivateSections
-        ? fullMeta.hash
-        : await sha256HexText(responseContent);
-    const responseEtag = canViewPrivateSections
+
+    const responseHash = isAdmin ? fullMeta.hash : await sha256HexText(responseContent);
+    const responseEtag = isAdmin
         ? (fullMeta.etag || makeDataEtag(responseHash, 'full'))
         : makeDataEtag(responseHash, 'public');
-
-    // A1.5 增强 A:在响应内容首行前置 window.__publicSlugInfo
-    // 前端 indexN.html 据此撤销/保留 data-public-mode(slug 失败时显示正常 admin UI)
-    // A1.5 增强 D(2026-05-23):命中老 slug 重定向时,info.oldSlug 携带原始请求 slug,前端显示改名 banner
-    let publicSlugInfoLine = '';
-    if (slugParam) {
-        // 只在请求带 ?u= 时才注入,正常加载不打扰
-        const info = isPublicSlugMode
-            ? { hit: true, slug: publicSlug, uid: publicUid,
-                oldSlug: publicOldSlug || null }
-            : { hit: false };
-        publicSlugInfoLine = 'window.__publicSlugInfo = ' + JSON.stringify(info) + ';\n';
-    }
-
-    // 2026-05-24:viewerInfo 给前端水印用 — 标识当前响应"展示的是谁的数据"
-    //   admin namespace → isAdminView=true,前端不显示水印
-    //   user namespace  → 携带 slug(优先) / username,前端在主页右下角显示浅灰 @<slug>
-    let viewerInfoLine = '';
-    {
-        let viewerUsername = null;
-        let viewerSlug = null;
-        if (isPublicSlugMode) {
-            viewerSlug = publicSlug;
-            // username 不重要(slug 已够用),省去额外查询
-        } else if (ns === 'user' && uid && env.FAV_KV) {
-            try {
-                const usersRaw = await env.FAV_KV.get('users');
-                if (usersRaw) {
-                    const usersTab = JSON.parse(usersRaw) || {};
-                    // uid 在当前 schema 里就是 username
-                    const me = usersTab[uid];
-                    if (me) {
-                        viewerUsername = uid;
-                        if (me.publicEnabled && me.publicSlug) viewerSlug = me.publicSlug;
-                    }
-                }
-            } catch {}
-        }
-        const viewerInfo = {
-            isAdminView: ns === 'admin',
-            slug: viewerSlug || null,
-            username: viewerUsername || null
-        };
-        viewerInfoLine = 'window.__viewerInfo = ' + JSON.stringify(viewerInfo) + ';\n';
-    }
 
     if (format === 'json') {
         return jsonResponse({
             ok: true,
             content: responseContent,
-            source: actualSource,
-            configured: source,
-            namespace: ns,
-            uid: uid,
-            dataVersion: fullMeta && fullMeta.version,
+            source: loaded.actualSource,
+            configured: loaded.configured,
+            namespace: 'admin',
+            dataVersion: fullMeta.version,
             dataEtag: responseEtag,
             dataHash: responseHash,
-            publicSlug: isPublicSlugMode ? publicSlug : null,
-            publicSlugHit: isPublicSlugMode,
-            publicOldSlug: publicOldSlug || null,
-            privateFiltered: !canViewPrivateSections
+            privateFiltered: !isAdmin,
+            siteConfig
         });
     }
 
-    // 前置 __publicSlugInfo + __viewerInfo(仅 JS 路径)
-    const finalContent = publicSlugInfoLine + viewerInfoLine + responseContent;
-
-    // 缓存策略:
-    //   登录态(非 slug 模式) → 严格 no-store
-    //   slug 公开模式         → public, max-age=30(可缓存,跨 cookie 共享)
-    //   未登录默认            → 沿用 P3-7 的 public, max-age=30
-    const cacheHeader = (isLoggedIn && !isPublicSlugMode)
-        ? 'private, no-store'
-        : 'public, max-age=30, s-maxage=60, stale-while-revalidate=300';
-
     const headers = {
         'Content-Type': 'application/javascript;charset=utf-8',
-        'Cache-Control': cacheHeader,
+        'Cache-Control': isAdmin
+            ? 'private, no-store'
+            : 'public, max-age=30, s-maxage=60, stale-while-revalidate=300',
         'ETag': responseEtag,
-        'X-Data-Version': fullMeta && fullMeta.version ? fullMeta.version : '',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Data-Version': fullMeta.version || '',
         'X-Data-ETag': responseEtag,
-        'X-Data-Source': actualSource,
-        'X-Data-Namespace': ns,
-        'X-Private-Filtered': canViewPrivateSections ? '0' : '1'
+        'X-Data-Source': loaded.actualSource,
+        'X-Data-Namespace': 'admin',
+        'X-Private-Filtered': isAdmin ? '0' : '1'
     };
-    if (isPublicSlugMode) {
-        headers['X-Public-Slug'] = publicSlug;
-        if (publicOldSlug) {
-            headers['X-Public-Old-Slug'] = publicOldSlug;
-        }
-    }
 
     const ifNoneMatch = request.headers.get('If-None-Match');
-    if (ifNoneMatch && ifNoneMatch.split(',').map(s => s.trim()).includes(responseEtag)) {
+    if (ifNoneMatch && ifNoneMatch.split(',').map(value => value.trim()).includes(responseEtag)) {
         return new Response(null, { status: 304, headers });
     }
 
-    return new Response(finalContent, { headers });
+    const body =
+        `window.__siteConfig = ${serializeForScript(siteConfig)};\n` +
+        `window.__viewerInfo = ${serializeForScript({ isAdminView: isAdmin })};\n` +
+        responseContent;
+
+    if (cache && cacheKey && context && typeof context.waitUntil === 'function') {
+        const cachedResponse = new Response(body, { headers });
+        context.waitUntil(cache.put(cacheKey, cachedResponse));
+        const missHeaders = new Headers(headers);
+        missHeaders.set('X-SmartTools-Cache', 'MISS');
+        return new Response(body, { headers: missHeaders });
+    }
+
+    return new Response(body, { headers });
 }

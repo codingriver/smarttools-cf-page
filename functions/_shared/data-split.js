@@ -142,9 +142,15 @@ export function metaFromSectionItem(item) {
         anchor,
         visible: extractBooleanProp(item, 'visible', true),
         dynamic: extractBooleanProp(item, 'dynamic', false),
-        private: extractBooleanProp(item, 'private', false),
-        encrypted: extractBooleanProp(item, 'encrypted', false)
+        private: extractBooleanProp(item, 'private', false)
     };
+}
+
+export function isLegacyEncryptedSectionItem(item) {
+    const source = String(item || '');
+    return /\bencrypted\s*:\s*true\b/.test(source)
+        || /(?:^|[,\{])\s*(?:enc|_enc)\s*:/.test(source)
+        || /\blocked\s*:\s*true\b/.test(source);
 }
 
 export function parseSectionItems(content) {
@@ -227,6 +233,33 @@ export function renderDataJsFromSectionItems(baseParts, sectionsMeta, sectionMap
     return before + lines.join('\n') + '\n' + after;
 }
 
+function filterSectionContent(content, predicate) {
+    const parsed = parseSectionItems(content);
+    if (!parsed) return String(content || '');
+    const keptMeta = [];
+    const keptMap = {};
+    for (const meta of parsed.sectionsMeta) {
+        const item = parsed.sectionMap[meta.key];
+        if (!item || !predicate(meta, item)) continue;
+        keptMeta.push(meta);
+        keptMap[meta.key] = item;
+    }
+    if (keptMeta.length === parsed.sectionsMeta.length) return String(content || '');
+    return renderDataJsFromSectionItems(parsed, keptMeta, keptMap);
+}
+
+// 旧密文明确不兼容：保存或恢复时直接丢弃整个旧加密分类。
+export function discardLegacyEncryptedSections(content) {
+    return filterSectionContent(content, (_meta, item) => !isLegacyEncryptedSectionItem(item));
+}
+
+// 匿名访问只得到公开分类；旧密文也永远不会下发。
+export function stripPrivateSections(content) {
+    return filterSectionContent(content, (meta, item) => {
+        return meta.private !== true && !isLegacyEncryptedSectionItem(item);
+    });
+}
+
 export async function readSplitSnapshot(env, ns) {
     if (!env.FAV_KV) return null;
     const keys = nsSplitKeys(ns);
@@ -242,6 +275,7 @@ export async function readSplitSnapshot(env, ns) {
 
 export async function writeSplitFromContent(env, ns, content) {
     if (!env.FAV_KV) return { ok: false, reason: 'missing-kv' };
+    content = discardLegacyEncryptedSections(content);
     const parsed = parseSectionItems(content);
     if (!parsed) return { ok: false, reason: 'no-sections' };
     const keys = nsSplitKeys(ns);

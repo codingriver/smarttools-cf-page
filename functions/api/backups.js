@@ -1,177 +1,103 @@
-// GET    /api/backups                          → 列出当前身份的所有备份
-// GET    /api/backups?name=xxx                 → 读取指定备份内容（当前身份的）
-// POST   /api/backups?action=create             → 手动创建当前主数据备份（当前身份的）
-// POST   /api/backups?name=xxx&action=restore  → 恢复为主数据（当前身份的）
-// DELETE /api/backups?name=xxx                 → 删除备份（当前身份的）
-//
-// A0 v2 改造（2026-05-17）：按身份选 namespace
-//   admin → 操作 admin:backup:* 和 admin:data_js
-//   user  → 操作 user:<uid>:backup:* 和 user:<uid>:data_js
-//   admin **不跨用户**（即使是 admin 也只看 admin 自己的备份；A1 会单独提供归档管理 API）
+import { requireAuth, jsonResponse } from '../_shared/auth.js';
+import {
+    discardLegacyEncryptedSections,
+    readSplitSnapshot,
+    writeSplitFromContent
+} from '../_shared/data-split.js';
 
-import { requireAuth, jsonResponse, getPayload } from '../_shared/auth.js';
-import { readSplitSnapshot, writeSplitFromContent } from '../_shared/data-split.js';
-
-const ADMIN_SITE_CONFIG_KEY = 'admin:site_config';
-const DEFAULT_BACKUP_RETENTION = 30;
-
-function nsKeys(ns) {
-    return {
-        data:    `${ns}:data_js`,
-        backupP: `${ns}:backup:`
-    };
-}
-
-async function pickNamespace(request, env) {
-    const payload = await getPayload(request, env);
-    const role = (payload && payload.role) || 'user';
-    const uid  = payload && (payload.uid != null ? payload.uid : payload.u);
-    return role === 'admin' ? 'admin' : `user:${uid}`;
-}
+const NS = 'admin';
+const DATA_KEY = 'admin:data_js';
+const BACKUP_PREFIX = 'admin:backup:';
+const SITE_CONFIG_KEY = 'admin:site_config';
+const DEFAULT_RETENTION = 30;
 
 export async function onRequestGet({ request, env }) {
     const fail = await requireAuth(request, env);
     if (fail) return fail;
     if (!env.FAV_KV) return jsonResponse({ ok: false, error: '未绑定 KV' }, 500);
-
-    const ns = await pickNamespace(request, env);
-    const KEYS = nsKeys(ns);
-
-    const url = new URL(request.url);
-    const name = url.searchParams.get('name');
-
+    const name = new URL(request.url).searchParams.get('name');
     if (name) {
-        let content = await env.FAV_KV.get(KEYS.backupP + name);
-        // ★ 迁移期兼容（仅 admin namespace）：新 key 不存在时尝试老 backup:* 前缀
-        if (content == null && ns === 'admin') {
-            content = await env.FAV_KV.get('backup:' + name);
-        }
+        const content = await env.FAV_KV.get(BACKUP_PREFIX + name);
         if (content == null) return jsonResponse({ ok: false, error: '备份不存在' }, 404);
-        return jsonResponse({ ok: true, content, namespace: ns });
+        return jsonResponse({ ok: true, content: discardLegacyEncryptedSections(content), namespace: NS });
     }
-
-    const list = await env.FAV_KV.list({ prefix: KEYS.backupP });
-    let items = list.keys.map(k => ({
-        name: k.name.substring(KEYS.backupP.length)
-    }));
-
-    // ★ 迁移期兼容（仅 admin namespace）：admin:backup:* 全空但 backup:* 非空时，列出老备份
-    //   带 legacy:true 标记。migrate-v2 调用后 admin:backup:* 出现，这条路径自动停用。
-    if (ns === 'admin' && items.length === 0) {
-        try {
-            const legacy = await env.FAV_KV.list({ prefix: 'backup:' });
-            if (legacy.keys.length > 0) {
-                items = legacy.keys.map(k => ({
-                    name: k.name.substring('backup:'.length),
-                    legacy: true
-                }));
-            }
-        } catch {}
-    }
-
-    items.sort((a, b) => b.name.localeCompare(a.name));
-    return jsonResponse({ ok: true, backups: items, namespace: ns });
+    const list = await env.FAV_KV.list({ prefix: BACKUP_PREFIX });
+    const backups = list.keys
+        .map(item => ({ name: item.name.slice(BACKUP_PREFIX.length) }))
+        .sort((a, b) => b.name.localeCompare(a.name));
+    return jsonResponse({ ok: true, backups, namespace: NS });
 }
 
 export async function onRequestPost({ request, env }) {
     const fail = await requireAuth(request, env);
     if (fail) return fail;
     if (!env.FAV_KV) return jsonResponse({ ok: false, error: '未绑定 KV' }, 500);
-
-    const ns = await pickNamespace(request, env);
-    const KEYS = nsKeys(ns);
-
     const url = new URL(request.url);
-    const name = url.searchParams.get('name');
     const action = url.searchParams.get('action');
+    const name = url.searchParams.get('name');
+
     if (action === 'create') {
-        const current = await readSplitSnapshot(env, ns) || await env.FAV_KV.get(KEYS.data);
-        if (!current || !current.trim()) return jsonResponse({ ok: false, error: '当前没有可备份的数据' }, 404);
-        const backupName = timestamp();
-        await env.FAV_KV.put(KEYS.backupP + backupName, current);
-        const backupRetention = await getBackupRetention(env);
-        const prunedBackups = backupRetention > 0 ? await pruneBackups(env.FAV_KV, KEYS.backupP, backupRetention) : 0;
-        return jsonResponse({ ok: true, backup: backupName, prunedBackups, namespace: ns });
+        const current = discardLegacyEncryptedSections(
+            await readSplitSnapshot(env, NS) || await env.FAV_KV.get(DATA_KEY) || ''
+        );
+        if (!current.trim()) return jsonResponse({ ok: false, error: '当前没有可备份的数据' }, 404);
+        const backup = timestamp();
+        await env.FAV_KV.put(BACKUP_PREFIX + backup, current);
+        const retention = await getRetention(env);
+        const prunedBackups = retention > 0 ? await pruneBackups(env.FAV_KV, retention) : 0;
+        return jsonResponse({ ok: true, backup, prunedBackups, namespace: NS });
     }
-    if (!name) return jsonResponse({ ok: false, error: '缺少 name' }, 400);
 
-    if (action === 'restore') {
-        // ★ 迁移期兼容：新 key 不存在时尝试老 backup:*（仅 admin namespace）
-        let content = await env.FAV_KV.get(KEYS.backupP + name);
-        if (content == null && ns === 'admin') {
-            content = await env.FAV_KV.get('backup:' + name);
-        }
-        if (content == null) return jsonResponse({ ok: false, error: '备份不存在' }, 404);
-        // 保存当前作为新备份（同 namespace 内，写到新 key）
-        const old = await readSplitSnapshot(env, ns) || await env.FAV_KV.get(KEYS.data);
-        if (old && old.trim()) {
-            await env.FAV_KV.put(KEYS.backupP + timestamp(), old);
-        }
-        await Promise.all([
-            env.FAV_KV.put(KEYS.data, content),
-            writeSplitFromContent(env, ns, content)
-        ]);
-        return jsonResponse({ ok: true, namespace: ns });
-    }
-    return jsonResponse({ ok: false, error: '未知 action' }, 400);
-}
-
-// 北京时间时间戳（与 save.js / comment.js 一致）
-function timestamp() {
-    const d = new Date(Date.now() + 8 * 60 * 60 * 1000);
-    const p = n => String(n).padStart(2, '0');
-    return d.getUTCFullYear() +
-           p(d.getUTCMonth() + 1) +
-           p(d.getUTCDate()) + '_' +
-           p(d.getUTCHours()) +
-           p(d.getUTCMinutes()) +
-           p(d.getUTCSeconds());
+    if (action !== 'restore' || !name) return jsonResponse({ ok: false, error: '未知 action 或缺少 name' }, 400);
+    const stored = await env.FAV_KV.get(BACKUP_PREFIX + name);
+    if (stored == null) return jsonResponse({ ok: false, error: '备份不存在' }, 404);
+    const content = discardLegacyEncryptedSections(stored);
+    const current = discardLegacyEncryptedSections(
+        await readSplitSnapshot(env, NS) || await env.FAV_KV.get(DATA_KEY) || ''
+    );
+    if (current.trim()) await env.FAV_KV.put(BACKUP_PREFIX + timestamp(), current);
+    await Promise.all([
+        env.FAV_KV.put(DATA_KEY, content),
+        env.FAV_KV.put('admin:data_source', 'kv'),
+        writeSplitFromContent(env, NS, content)
+    ]);
+    return jsonResponse({ ok: true, namespace: NS });
 }
 
 export async function onRequestDelete({ request, env }) {
     const fail = await requireAuth(request, env);
     if (fail) return fail;
     if (!env.FAV_KV) return jsonResponse({ ok: false, error: '未绑定 KV' }, 500);
-
-    const ns = await pickNamespace(request, env);
-    const KEYS = nsKeys(ns);
-
-    const url = new URL(request.url);
-    const name = url.searchParams.get('name');
+    const name = new URL(request.url).searchParams.get('name');
     if (!name) return jsonResponse({ ok: false, error: '缺少 name' }, 400);
-    // ★ 迁移期兼容：先尝试新 key，如果不存在再尝试老 key（仅 admin namespace）
-    await env.FAV_KV.delete(KEYS.backupP + name);
-    if (ns === 'admin') {
-        // 同时删老 key（如果还在）——避免 admin 删了备份但老备份还在
-        await env.FAV_KV.delete('backup:' + name);
-    }
-    return jsonResponse({ ok: true, namespace: ns });
+    await env.FAV_KV.delete(BACKUP_PREFIX + name);
+    return jsonResponse({ ok: true, namespace: NS });
 }
 
-async function getBackupRetention(env) {
+function timestamp() {
+    const date = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const pad = value => String(value).padStart(2, '0');
+    return date.getUTCFullYear() + pad(date.getUTCMonth() + 1) + pad(date.getUTCDate()) + '_'
+        + pad(date.getUTCHours()) + pad(date.getUTCMinutes()) + pad(date.getUTCSeconds());
+}
+
+async function getRetention(env) {
     try {
-        const raw = await env.FAV_KV.get(ADMIN_SITE_CONFIG_KEY);
-        if (!raw) return DEFAULT_BACKUP_RETENTION;
-        const parsed = JSON.parse(raw);
-        return normalizeBackupRetention(parsed.backupRetention, DEFAULT_BACKUP_RETENTION);
+        const raw = await env.FAV_KV.get(SITE_CONFIG_KEY);
+        const value = raw ? JSON.parse(raw).backupRetention : DEFAULT_RETENTION;
+        const number = Number(value);
+        if (!Number.isFinite(number)) return DEFAULT_RETENTION;
+        const rounded = Math.floor(number);
+        return rounded === 0 ? 0 : Math.max(1, Math.min(500, rounded));
     } catch {
-        return DEFAULT_BACKUP_RETENTION;
+        return DEFAULT_RETENTION;
     }
 }
 
-function normalizeBackupRetention(value, fallback = DEFAULT_BACKUP_RETENTION) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return fallback;
-    const rounded = Math.floor(n);
-    if (rounded === 0) return 0;
-    return Math.max(1, Math.min(500, rounded));
-}
-
-async function pruneBackups(kv, prefix, maxBackups) {
-    const list = await kv.list({ prefix });
-    if (list.keys.length <= maxBackups) return 0;
-    const sorted = list.keys.sort((a, b) => a.name.localeCompare(b.name));
-    const toDelete = sorted.slice(0, sorted.length - maxBackups);
-    await Promise.all(toDelete.map(k => kv.delete(k.name)));
-    return toDelete.length;
+async function pruneBackups(kv, limit) {
+    const list = await kv.list({ prefix: BACKUP_PREFIX });
+    if (list.keys.length <= limit) return 0;
+    const remove = list.keys.sort((a, b) => a.name.localeCompare(b.name)).slice(0, list.keys.length - limit);
+    await Promise.all(remove.map(item => kv.delete(item.name)));
+    return remove.length;
 }

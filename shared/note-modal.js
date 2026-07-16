@@ -1,7 +1,7 @@
 /* ================================================================================
  * shared/note-modal.js
  * ─────────────────────────────────────────────────────────────────────────────
- * 卡片注释（comment）模态框 + 轻量 Markdown 渲染 + Markdown 工具栏 + 多主题
+ * 卡片注释（comment）模态框 + 轻量 Markdown 渲染 + Markdown 工具栏 + Notion 单主题
  *
  * ★ 本版变更：
  *   - 全页面波纹：点击 .note-body 时,波纹元素(.note-ripple-fullpage)
@@ -22,16 +22,15 @@
  *        - 有 comment  → 弹出注释模态框(有 url 时可点击注释空白区打开 url)
  *        - 无 comment  → 直接打开 url
  *   2. 卡片可以只有 comment 而没有 url(纯备忘卡片)
- *   3. 权限判定:sessionStorage['bm_cfg_enc_pwd'] 存在 ⇒ 已解锁 ⇒ 可编辑
- *      ★ 加密分类(meta.encrypted === true)的卡片前端不允许编辑
- *   4. 已解锁用户:
+ *   3. 权限判定:仅管理员数据响应(window.__viewerInfo.isAdminView)可编辑
+ *   4. 管理员:
  *        - 有 comment:模态框内出现"编辑"
  *        - 无 comment:卡片右键 / 长按 → 打开编辑器添加
  *
  * 编辑器按钮:
  *   - 只有【返回】【保存】;清空 textarea 再点保存 = 删除注释
  *
- * 主题(对应 index1-5):nebula / notion / stripe / dark / mint
+ * 外观：固定使用 Notion 单主题
  *
  * 对外 API:
  *   window.NoteModal = { show, openEditor, canEdit, renderMarkdown,
@@ -40,7 +39,6 @@
 (function(global) {
     'use strict';
 
-    var PWD_KEY   = 'bm_cfg_enc_pwd';
     var LS_NOTES  = 'bm_comment_overrides';
     var CONFIG_HREF = 'config.html';
 
@@ -108,40 +106,14 @@
         });
     }
 
-    /* ───────────────────────── 主题检测 ───────────────────────── */
-    var FAV_THEME_MAP = {
-        'index1.html': 'nebula',
-        'index2.html': 'notion',
-        'index3.html': 'stripe',
-        'index4.html': 'dark',
-        'index5.html': 'mint'
-    };
-    var VALID_THEMES = ['nebula', 'notion', 'stripe', 'dark', 'mint'];
-
+    /* ───────────────────────── 单主题外观 ───────────────────────── */
     function detectNoteTheme() {
-        try {
-            var t = new URLSearchParams(location.search).get('theme');
-            if (t && VALID_THEMES.indexOf(t) !== -1) return t;
-        } catch (e) {}
-        if (global.__FAV_PAGE_ID && FAV_THEME_MAP[global.__FAV_PAGE_ID]) {
-            return FAV_THEME_MAP[global.__FAV_PAGE_ID];
-        }
-        var name = (location.pathname.split('/').pop() || '').toLowerCase();
-        if (FAV_THEME_MAP[name]) return FAV_THEME_MAP[name];
-        try {
-            var ls = localStorage.getItem('fav_last_style');
-            if (ls && FAV_THEME_MAP[ls]) return FAV_THEME_MAP[ls];
-        } catch (e) {}
-        return 'nebula';
+        return 'notion';
     }
 
     /* ───────────────────────── 权限 ───────────────────────── */
     function canEdit(entry) {
-        try {
-            if (!sessionStorage.getItem(PWD_KEY)) return false;
-        } catch (e) { return false; }
-        if (entry && entry.meta && entry.meta.encrypted) return false;
-        return true;
+        return !!(global.__viewerInfo && global.__viewerInfo.isAdminView === true);
     }
 
     /* ───────────────────────── 在线/本地模式检测 ───────────────────────── */
@@ -594,7 +566,7 @@
 
         var iconHtml;
         if (card.iconImg) {
-            iconHtml = '<span class="note-icon"><img src="' + esc(card.iconImg) + '" alt=""></span>';
+            iconHtml = '<span class="note-icon"><img src="' + esc(card.iconImg) + '" alt="" width="24" height="24" loading="lazy" decoding="async" fetchpriority="low"></span>';
         } else if (card.icon && String(card.icon).charAt(0) === '<') {
             iconHtml = '<span class="note-icon note-icon-svg">' + sanitizeSVG(card.icon) + '</span>';
         } else if (card.icon) {
@@ -735,11 +707,7 @@
                 } else {
                     var tip = document.createElement('span');
                     tip.className = 'note-readonly-tip';
-                    if (entry.meta && entry.meta.encrypted) {
-                        tip.innerHTML = '🔒 加密内容请到 Config 页面修改';
-                    } else {
-                        tip.innerHTML = '🔒 只读(解锁后可编辑)';
-                    }
+                    tip.innerHTML = '🔒 仅管理员可编辑';
                     footer.appendChild(tip);
                 }
             }
@@ -759,9 +727,7 @@
 
             if (!canEdit(entry)) {
                 statusEl.className = 'note-status err';
-                statusEl.textContent = (entry.meta && entry.meta.encrypted)
-                    ? '🔒 加密内容请到 Config 页面修改'
-                    : '❌ 未解锁,无法保存';
+                statusEl.textContent = '❌ 仅管理员可保存';
                 saveBtn && (saveBtn.disabled = false);
                 return;
             }
@@ -867,8 +833,7 @@
 
     /* ───────────────────────── 红点 DOM 同步辅助 ─────────────────────────
      * 把"添加 .has-note 类 + append <span class='note-dot'>"封装在一起，
-     * 让红点改用真实 DOM 元素而非 ::after，避免与页面自有伪元素冲突
-     * （如 index5 的 .link-card::after hover 绿线）。
+     * 让红点改用真实 DOM 元素而非 ::after，避免与页面自有伪元素冲突。
      * ─────────────────────────────────────────────────────────── */
     function setHasNote(el, hasNote) {
         if (!el || !el.classList) return;

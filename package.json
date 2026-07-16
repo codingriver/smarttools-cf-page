@@ -1,0 +1,17 @@
+{
+  "name": "smarttools-pages",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/prepare-deploy.mjs",
+    "deploy": "npm run build && npx wrangler@latest pages deploy dist --project-name smarttools --branch main --commit-dirty=true --skip-caching",
+    "test:api": "node scripts/acceptance.mjs",
+    "test:browser": "node scripts/browser-acceptance.mjs",
+    "test:online": "node scripts/online-acceptance.mjs",
+    "test:performance": "node scripts/performance-acceptance.mjs",
+    "test": "npm run test:api && npm run test:browser"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.55.0"
+  }
+}

@@ -1,6 +1,6 @@
 /* ================================================================================
  * shared/note-modal.css
- * 卡片注释（comment）模态框 + Markdown 渲染 + 工具栏 + 5 套主题
+ * 卡片注释（comment）模态框 + Markdown 渲染 + 工具栏 + Notion 单主题
  *
  * ★ 本版新增/调整：
  *   - 全页面波纹：新增 .note-ripple-fullpage（position: fixed 覆盖整个视口），
@@ -8,16 +8,15 @@
  *     向全屏扩散"的视觉效果。
  *   - .note-body 的 hover 颜色大幅加深，并加 inset 阴影强化边界感。
  *   - 保留按钮的局部波纹（.note-ripple）。
- *   - 红点：默认偏小，hover 放大；显式重置主题 CSS 可能继承的
- *     opacity/transform/bottom/right，避免与页面自有 ::after 冲突
- *     （例如 index5 的 .link-card::after 绿色竖条导致的红点消失问题）。
+ *   - 红点：默认偏小，hover 放大；显式重置页面 CSS 可能继承的
+ *     opacity/transform/bottom/right，避免与页面自有 ::after 冲突。
  * ================================================================================ */
 
-/* ─── 有注释的卡片：左上角小红点（与主题无关，不主题化） ───
+/* ─── 有注释的卡片：左上角小红点 ───
  * ★ 改为真实 DOM 元素 <span class="note-dot">，由 note-modal.js 在
  *   添加 .has-note 时一起 append、移除时一起删除。
- *   原因：之前用 ::after 会与页面自有的 .link-card::after（如 index5
- *   的 hover 绿色竖线）冲突——同一元素的 ::after 只能存在一份，
+ *   原因：之前用 ::after 会与页面自有的 .link-card::after 冲突——
+ *   同一元素的 ::after 只能存在一份，
  *   特异性高的 .has-note::after 会独占伪元素，导致页面装饰被吃掉。
  *   改成真实子元素后，伪元素让回给页面，互不干扰。
  * ─────────────────────────────────────────────────────────── */
@@ -57,7 +56,7 @@
 }
 
 /* ============================================================
- * 默认主题变量（= nebula）
+ * 基础外观变量
  * ============================================================ */
 .note-mask {
     --nm-mask-bg: rgba(20, 15, 45, 0.55);
@@ -79,7 +78,7 @@
     --nm-body-hover: rgba(102,126,234,0.20);
     --nm-body-hover-border: rgba(102,126,234,0.35);
 
-    /* ★ 全页面波纹颜色（由各主题覆盖） */
+    /* ★ 全页面波纹颜色 */
     --nm-ripple-color: rgba(102,126,234,0.55);
 
     --nm-accent: #667eea;
@@ -412,28 +411,7 @@
 .note-readonly-tip { font-size: 12px; color: var(--nm-text-muted); }
 
 
-/* ╔══════════════════════════════════════════════════════════╗
- * ║                  主题变量覆盖 THEMES                     ║
- * ╚══════════════════════════════════════════════════════════╝ */
-
-/* 🌌 NEBULA */
-.note-mask[data-note-theme="nebula"] {
-    --nm-mask-bg: rgba(40, 30, 80, 0.55);
-    --nm-accent: #667eea;
-    --nm-accent-hover: #5566dd;
-    --nm-quote-border: #667eea;
-    --nm-body-hover: rgba(102,126,234,0.22);
-    --nm-body-hover-border: rgba(102,126,234,0.40);
-    --nm-ripple-color: rgba(120,140,255,0.55);
-    --nm-btn-primary-bg: linear-gradient(135deg, #667eea, #764ba2);
-    --nm-btn-primary-shadow: 0 3px 10px rgba(102,126,234,0.35);
-    --nm-btn-primary-shadow-h: 0 5px 14px rgba(102,126,234,0.45);
-    --nm-editor-focus: #667eea;
-    --nm-editor-focus-ring: rgba(102,126,234,0.15);
-    --nm-toolbar-btn-hover-color: #667eea;
-}
-
-/* 📄 NOTION */
+/* ─── Notion 单主题变量 ─── */
 .note-mask[data-note-theme="notion"] {
     --nm-mask-bg: rgba(55, 53, 47, 0.42);
     --nm-box-bg: #ffffff;
@@ -478,162 +456,6 @@
     --nm-btn-primary-bg: #6E56CF;
     --nm-btn-primary-shadow: 0 2px 6px rgba(110,86,207,0.30);
     --nm-btn-primary-shadow-h: 0 4px 12px rgba(110,86,207,0.40);
-}
-
-/* 💎 STRIPE */
-.note-mask[data-note-theme="stripe"] {
-    --nm-mask-bg: rgba(5, 15, 30, 0.58);
-    --nm-box-bg: #ffffff;
-    --nm-box-shadow: 0 20px 60px rgba(10,37,64,0.5), 0 0 40px rgba(99,91,255,0.12);
-    --nm-text: #0A2540;
-    --nm-text-secondary: #425466;
-    --nm-text-muted: #8898aa;
-    --nm-title-color: #0A2540;
-    --nm-heading-color: #0A2540;
-    --nm-strong-color: #0A2540;
-    --nm-border-soft: #e5e7ef;
-    --nm-close-color: #8898aa;
-    --nm-close-hover-bg: #f0f2f7;
-    --nm-close-hover-color: #635BFF;
-    --nm-body-hover: rgba(99, 91, 255, 0.20);
-    --nm-body-hover-border: rgba(99, 91, 255, 0.42);
-    --nm-ripple-color: rgba(99, 91, 255, 0.55);
-    --nm-accent: #635BFF;
-    --nm-accent-hover: #4F46E5;
-    --nm-code-bg: #f0f2f7;
-    --nm-code-color: #635BFF;
-    --nm-pre-bg: #0A2540;
-    --nm-pre-color: #e8ebf5;
-    --nm-quote-bg: #f5f6fb;
-    --nm-quote-border: #635BFF;
-    --nm-quote-color: #425466;
-    --nm-table-head-bg: #f5f6fb;
-    --nm-table-border: #e5e7ef;
-    --nm-editor-bg: #ffffff;
-    --nm-editor-border: #e5e7ef;
-    --nm-editor-focus: #635BFF;
-    --nm-editor-focus-ring: rgba(99,91,255,0.15);
-    --nm-editor-text: #0A2540;
-    --nm-toolbar-bg: #f5f6fb;
-    --nm-toolbar-btn-color: #425466;
-    --nm-toolbar-btn-hover-bg: #e9ebf4;
-    --nm-toolbar-btn-hover-color: #635BFF;
-    --nm-toolbar-sep: #e5e7ef;
-    --nm-btn-secondary-bg: #f0f2f7;
-    --nm-btn-secondary-hover: #e5e8ef;
-    --nm-btn-secondary-color: #425466;
-    --nm-btn-primary-bg: linear-gradient(135deg, #635BFF, #00D4FF);
-    --nm-btn-primary-shadow: 0 3px 10px rgba(99,91,255,0.35);
-    --nm-btn-primary-shadow-h: 0 6px 18px rgba(99,91,255,0.45);
-}
-
-/* 🖤 DARK */
-.note-mask[data-note-theme="dark"] {
-    --nm-mask-bg: rgba(0, 0, 0, 0.72);
-    --nm-box-bg: #111111;
-    --nm-box-border: rgba(0,153,255,0.40);
-    --nm-box-shadow: 0 0 30px rgba(0,153,255,0.25),
-                     0 0 60px rgba(0,153,255,0.10),
-                     0 20px 60px rgba(0,0,0,0.6);
-    --nm-text: #ffffff;
-    --nm-text-secondary: rgba(255,255,255,0.65);
-    --nm-text-muted: rgba(255,255,255,0.40);
-    --nm-title-color: #ffffff;
-    --nm-heading-color: #ffffff;
-    --nm-strong-color: #ffffff;
-    --nm-border-soft: rgba(255,255,255,0.10);
-    --nm-close-color: rgba(255,255,255,0.5);
-    --nm-close-hover-bg: rgba(0,153,255,0.15);
-    --nm-close-hover-color: #0099FF;
-    --nm-body-hover: rgba(0,153,255,0.28);
-    --nm-body-hover-border: rgba(0,153,255,0.55);
-    --nm-ripple-color: rgba(0,153,255,0.65);
-    --nm-accent: #33B0FF;
-    --nm-accent-hover: #66C2FF;
-    --nm-code-bg: rgba(0,153,255,0.12);
-    --nm-code-color: #66CCFF;
-    --nm-pre-bg: #0a0a0a;
-    --nm-pre-color: #d4e4f0;
-    --nm-quote-bg: rgba(0,153,255,0.08);
-    --nm-quote-border: #0099FF;
-    --nm-quote-color: rgba(255,255,255,0.78);
-    --nm-table-head-bg: rgba(0,153,255,0.10);
-    --nm-table-border: rgba(255,255,255,0.12);
-    --nm-editor-bg: #191919;
-    --nm-editor-border: rgba(255,255,255,0.12);
-    --nm-editor-focus: #0099FF;
-    --nm-editor-focus-ring: rgba(0,153,255,0.22);
-    --nm-editor-text: #ffffff;
-    --nm-toolbar-bg: #191919;
-    --nm-toolbar-btn-color: rgba(255,255,255,0.70);
-    --nm-toolbar-btn-hover-bg: rgba(0,153,255,0.15);
-    --nm-toolbar-btn-hover-color: #0099FF;
-    --nm-toolbar-sep: rgba(255,255,255,0.10);
-    --nm-btn-secondary-bg: rgba(255,255,255,0.06);
-    --nm-btn-secondary-hover: rgba(0,153,255,0.15);
-    --nm-btn-secondary-color: rgba(255,255,255,0.85);
-    --nm-btn-primary-bg: linear-gradient(135deg, #0099FF, #0066CC);
-    --nm-btn-primary-color: #ffffff;
-    --nm-btn-primary-shadow: 0 0 14px rgba(0,153,255,0.45), 0 3px 10px rgba(0,0,0,0.5);
-    --nm-btn-primary-shadow-h: 0 0 22px rgba(0,153,255,0.65), 0 5px 16px rgba(0,0,0,0.55);
-    --nm-btn-danger-bg: transparent;
-    --nm-btn-danger-color: #ff6b6b;
-    --nm-btn-danger-border: rgba(255,107,107,0.55);
-    --nm-btn-danger-hover-bg: rgba(255,107,107,0.12);
-    --nm-status-default: rgba(255,255,255,0.55);
-    --nm-status-ok: #10D48B;
-    --nm-status-err: #ff6b6b;
-}
-.note-mask[data-note-theme="dark"] .note-md a {
-    text-shadow: 0 0 8px rgba(0,153,255,0.35);
-}
-
-/* 🌿 MINT */
-.note-mask[data-note-theme="mint"] {
-    --nm-mask-bg: rgba(6, 140, 108, 0.22);
-    --nm-box-bg: #ffffff;
-    --nm-box-shadow: 0 20px 60px rgba(13,147,115,0.20), 0 10px 30px rgba(0,0,0,0.12);
-    --nm-text: #111827;
-    --nm-text-secondary: #6B7280;
-    --nm-text-muted: #9CA3AF;
-    --nm-title-color: #111827;
-    --nm-heading-color: #111827;
-    --nm-strong-color: #111827;
-    --nm-border-soft: rgba(0,0,0,0.07);
-    --nm-close-color: #6B7280;
-    --nm-close-hover-bg: #F0FAF7;
-    --nm-close-hover-color: #0D9373;
-    --nm-body-hover: rgba(13,147,115,0.22);
-    --nm-body-hover-border: rgba(13,147,115,0.42);
-    --nm-ripple-color: rgba(13,147,115,0.55);
-    --nm-accent: #0D9373;
-    --nm-accent-hover: #087F5B;
-    --nm-code-bg: #F0FAF7;
-    --nm-code-color: #087F5B;
-    --nm-pre-bg: #0F1F1A;
-    --nm-pre-color: #D1FAE5;
-    --nm-quote-bg: #F0FAF7;
-    --nm-quote-border: #0D9373;
-    --nm-quote-color: #374151;
-    --nm-table-head-bg: #F0FAF7;
-    --nm-table-border: #E5E7EB;
-    --nm-editor-bg: #FFFFFF;
-    --nm-editor-border: #E5E7EB;
-    --nm-editor-focus: #0D9373;
-    --nm-editor-focus-ring: rgba(13,147,115,0.15);
-    --nm-editor-text: #111827;
-    --nm-toolbar-bg: #FAFBFC;
-    --nm-toolbar-btn-color: #6B7280;
-    --nm-toolbar-btn-hover-bg: #F0FAF7;
-    --nm-toolbar-btn-hover-color: #0D9373;
-    --nm-toolbar-sep: #E5E7EB;
-    --nm-btn-secondary-bg: #F0FAF7;
-    --nm-btn-secondary-hover: #DCF5ED;
-    --nm-btn-secondary-color: #087F5B;
-    --nm-btn-primary-bg: #0D9373;
-    --nm-btn-primary-color: #ffffff;
-    --nm-btn-primary-shadow: 0 2px 8px rgba(13,147,115,0.30);
-    --nm-btn-primary-shadow-h: 0 4px 14px rgba(13,147,115,0.40);
 }
 
 /* ─── 响应式 ─── */

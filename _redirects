@@ -1,12 +1,17 @@
-/t /index.html 302
-/tool /index.html 302
-/tools /index.html 302
-/toolsindex /index.html 302
-/toolsindex.html /index.html 302
-/l /index.html 200
+/index1 / 301
+/index1.html / 301
+/index2 / 301
+/index2.html / 301
+/index3 / 301
+/index3.html / 301
+/index4 / 301
+/index4.html / 301
+/index5 / 301
+/index5.html / 301
+/t / 302
+/tool / 302
+/tools / 302
+/toolsindex / 302
+/toolsindex.html / 302
+/l / 302
 /c /config.html 200
-
-# 2026-05-22 启用:Cloudflare Pages 不识别 functions/@[[slug]].js(部署后整个 functions bundle 挂掉,
-# 表现为 1101 + /api/* 全部失联),已删除该文件,改走 200 rewrite 把 /@<slug> 内部转给 /u/<slug>。
-# URL 栏保持 /@<slug> 不变,服务端复用 functions/u/[[slug]].js。
-/@:slug /u/:slug 200

@@ -1,14 +1,11 @@
-import { requireAuth, jsonResponse, getPayload } from '../_shared/auth.js';
+import { requireAuth, jsonResponse } from '../_shared/auth.js';
+import { writeDataMeta } from '../_shared/data-meta.js';
+import { discardLegacyEncryptedSections, readSplitSnapshot, writeSplitFromContent } from '../_shared/data-split.js';
 
 /* ================================================================================
  * /api/comment —— 单条卡片 comment 字段的精准 patch
  * ─────────────────────────────────────────────────────────────────────────────
- * A0 v2 改造（2026-05-17）：按身份选 namespace
- *   admin → admin:data_js / admin:data_source / admin:backup:*
- *   user  → user:<uid>:data_js / user:<uid>:data_source / user:<uid>:backup:*
- *          + 写完后 users[uid].hasData = true（best-effort）
- *
- * patchCommentInSource 与源码扫描器完全不变，schema 不动。
+ * 单管理员模式，固定修改 admin:data_js。
  *
  * 请求体（不变）：
  *   {
@@ -18,34 +15,15 @@ import { requireAuth, jsonResponse, getPayload } from '../_shared/auth.js';
  * ================================================================================ */
 
 const MAX_BACKUPS = 100;
-const PRUNE_PROBABILITY = 0.2;
-const USERS_KEY = 'users';
-
-function nsKeys(ns) {
-    return {
-        data:    `${ns}:data_js`,
-        source:  `${ns}:data_source`,
-        backupP: `${ns}:backup:`
-    };
-}
-
-/**
- * 模块作用域 flag：按 namespace 维护。语义同 save.js。
- */
-const _sourceConfirmedKv = new Set();
+const NS = 'admin';
+const DATA_KEY = 'admin:data_js';
+const SOURCE_KEY = 'admin:data_source';
+const BACKUP_PREFIX = 'admin:backup:';
 
 export async function onRequestPost({ request, env }) {
     const fail = await requireAuth(request, env);
     if (fail) return fail;
     if (!env.FAV_KV) return jsonResponse({ ok: false, error: '未绑定 KV(FAV_KV)' }, 500);
-
-    // 选 namespace
-    const payload = await getPayload(request, env);
-    const role = (payload && payload.role) || 'user';
-    const uid  = payload && (payload.uid != null ? payload.uid : payload.u);
-    const ns   = role === 'admin' ? 'admin' : `user:${uid}`;
-    const isUser = role !== 'admin';
-    const KEYS = nsKeys(ns);
 
     let body;
     try { body = await request.json(); }
@@ -58,17 +36,14 @@ export async function onRequestPost({ request, env }) {
     if (typeof comment !== 'string') {
         return jsonResponse({ ok: false, error: 'comment 必须是字符串' }, 400);
     }
-    // 2026-05-23:允许 path 末尾是 'comment' 或 'pushedBy'(§13 标注删除)
     const targetField = path[path.length - 1];
-    if (targetField !== 'comment' && targetField !== 'pushedBy') {
-        return jsonResponse({ ok: false, error: 'path 必须以 comment 或 pushedBy 结尾' }, 400);
-    }
-    // pushedBy 字段只允许"置空 = 删除",不能用此端点写入(防越权写)
-    if (targetField === 'pushedBy' && comment !== '') {
-        return jsonResponse({ ok: false, error: 'pushedBy 字段只允许置空(删除)' }, 400);
+    if (targetField !== 'comment') {
+        return jsonResponse({ ok: false, error: 'path 必须以 comment 结尾' }, 400);
     }
 
-    const old = await env.FAV_KV.get(KEYS.data);
+    const old = discardLegacyEncryptedSections(
+        await readSplitSnapshot(env, NS) || await env.FAV_KV.get(DATA_KEY) || ''
+    );
     if (!old) return jsonResponse({ ok: false, error: '数据文件不存在于 KV' }, 404);
 
     let patched;
@@ -79,45 +54,24 @@ export async function onRequestPost({ request, env }) {
     }
 
     if (patched === old) {
-        return jsonResponse({ ok: true, unchanged: true, backup: null, namespace: ns });
+        return jsonResponse({ ok: true, unchanged: true, backup: null, namespace: NS });
     }
 
     // 备份旧版本
     let backupName = null;
     if (old.trim()) {
-        backupName = KEYS.backupP + timestamp();
-        await env.FAV_KV.put(backupName, old);
-        if (Math.random() < PRUNE_PROBABILITY) {
-            try { await pruneBackups(env.FAV_KV, KEYS.backupP); } catch {}
-        }
+        backupName = timestamp();
+        await env.FAV_KV.put(BACKUP_PREFIX + backupName, old);
+        await pruneBackups(env.FAV_KV, BACKUP_PREFIX);
     }
 
-    // 主数据写入 + SOURCE_KEY 自动激活 → 并行
-    const writes = [env.FAV_KV.put(KEYS.data, patched)];
-    if (!_sourceConfirmedKv.has(ns)) {
-        const currentSource = await env.FAV_KV.get(KEYS.source);
-        if (currentSource !== 'kv') {
-            writes.push(env.FAV_KV.put(KEYS.source, 'kv'));
-        }
-        _sourceConfirmedKv.add(ns);
-    }
-    await Promise.all(writes);
-
-    // user 路径：标记 hasData=true（best-effort）
-    if (isUser && uid) {
-        try {
-            const raw = await env.FAV_KV.get(USERS_KEY);
-            const users = raw ? JSON.parse(raw) : {};
-            if (users[uid] && !users[uid].hasData) {
-                users[uid].hasData = true;
-                await env.FAV_KV.put(USERS_KEY, JSON.stringify(users));
-            }
-        } catch (e) {
-            console.warn('hasData update failed for', uid, e && e.message);
-        }
-    }
-
-    return jsonResponse({ ok: true, backup: backupName, namespace: ns });
+    await Promise.all([
+        env.FAV_KV.put(DATA_KEY, patched),
+        env.FAV_KV.put(SOURCE_KEY, 'kv'),
+        writeSplitFromContent(env, NS, patched)
+    ]);
+    await writeDataMeta(env, NS, patched);
+    return jsonResponse({ ok: true, backup: backupName, namespace: NS });
 }
 
 // 北京时间时间戳（与 save.js 一致）
@@ -197,9 +151,7 @@ function patchCommentInSource(src, path, comment) {
     }
 
     if (src[pos] !== '{') throw new Error('目标卡片对象起始不是 {');
-    // path 末尾字段名(comment / pushedBy)透传给字段级 patcher
-    const fieldName = path[path.length - 1];
-    return updateCommentInObject(src, pos, comment, fieldName);
+    return updateCommentInObject(src, pos, comment);
 }
 
 function isWs(c) { return c === ' ' || c === '\t' || c === '\n' || c === '\r'; }
@@ -370,9 +322,9 @@ function enterObjectKey(src, pos, key) {
     throw new Error('对象解析失败');
 }
 
-// 在 objStart 指向的对象里:替换/删除/插入指定字段(默认 'comment',2026-05-23 加 fieldName 参数支持 'pushedBy')
-function updateCommentInObject(src, objStart, newComment, fieldName) {
-    if (!fieldName) fieldName = 'comment';
+// 在 objStart 指向的对象里替换、删除或插入 comment 字段。
+function updateCommentInObject(src, objStart, newComment) {
+    const fieldName = 'comment';
     if (src[objStart] !== '{') throw new Error('期望 {');
     const n = src.length;
     let pos = objStart + 1;
@@ -417,13 +369,7 @@ function updateCommentInObject(src, objStart, newComment, fieldName) {
                 }
                 delEnd = after;
             }
-            // 删 pushedBy 时,同步删紧邻的 pushedAt(若存在)— 配对清理,避免孤儿
-            let cleaned = src.substring(0, fieldStart) + src.substring(delEnd);
-            if (fieldName === 'pushedBy') {
-                // 重新定位被改后的对象起点(objStart 还有效,因为我们在它之后才编辑)
-                cleaned = removeFieldFromObject(cleaned, objStart, 'pushedAt');
-            }
-            return cleaned;
+            return src.substring(0, fieldStart) + src.substring(delEnd);
         }
         // 替换值
         return src.substring(0, fieldValStart) + JSON.stringify(newComment) + src.substring(fieldValEnd);
@@ -447,45 +393,4 @@ function updateCommentInObject(src, objStart, newComment, fieldName) {
         }
     }
     return src.substring(0, braceIdx) + insertion + src.substring(braceIdx);
-}
-
-// 简化版:从对象里删除某字段(2026-05-23 用于配对清理 pushedAt)
-// 不会插入,字段不存在则原样返回
-function removeFieldFromObject(src, objStart, fieldName) {
-    if (src[objStart] !== '{') return src;
-    const n = src.length;
-    let pos = objStart + 1;
-    while (pos < n) {
-        pos = skipWs(src, pos);
-        if (src[pos] === '}') return src;
-        const entryStart = pos;
-        let keyInfo;
-        try { keyInfo = readKey(src, pos); } catch { return src; }
-        pos = keyInfo.end;
-        pos = skipWs(src, pos);
-        if (src[pos] !== ':') return src;
-        pos++;
-        pos = skipWs(src, pos);
-        pos = skipValue(src, pos);
-        const valEnd = pos;
-        if (keyInfo.name === fieldName) {
-            let delEnd = valEnd;
-            const after = skipWs(src, delEnd);
-            if (src[after] === ',') {
-                delEnd = after + 1;
-            } else if (src[after] === '}') {
-                let before = entryStart - 1;
-                while (before >= 0 && isWs(src[before])) before--;
-                if (before >= 0 && src[before] === ',') {
-                    return src.substring(0, before) + src.substring(after);
-                }
-                delEnd = after;
-            }
-            return src.substring(0, entryStart) + src.substring(delEnd);
-        }
-        pos = skipWs(src, pos);
-        if (src[pos] === ',') { pos++; continue; }
-        if (src[pos] === '}') break;
-    }
-    return src;
 }

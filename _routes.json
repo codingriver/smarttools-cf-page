@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "include": [
+    "/api/*",
+    "/README.md",
+    "/README_CN.md",
+    "/package.json",
+    "/package-lock.json",
+    "/scripts/*",
+    "/screenshot/*",
+    "/functions/*",
+    "/node_modules/*",
+    "/.github/*",
+    "/.git/*",
+    "/.gitignore",
+    "/.gitattributes",
+    "/.assetsignore",
+    "/.wrangler/*",
+    "/.env",
+    "/.env.*",
+    "/.dev.vars"
+  ],
+  "exclude": []
+}
