@@ -1,6 +1,7 @@
 import { requireAuth, jsonResponse } from '../_shared/auth.js';
 import { writeDataMeta } from '../_shared/data-meta.js';
 import { discardLegacyEncryptedSections, readSplitSnapshot, writeSplitFromContent } from '../_shared/data-split.js';
+import { invalidatePublicDataCache } from '../_shared/public-data-cache.js';
 
 /* ================================================================================
  * /api/comment —— 单条卡片 comment 字段的精准 patch
@@ -71,6 +72,7 @@ export async function onRequestPost({ request, env }) {
         writeSplitFromContent(env, NS, patched)
     ]);
     await writeDataMeta(env, NS, patched);
+    await invalidatePublicDataCache(request);
     return jsonResponse({ ok: true, backup: backupName, namespace: NS });
 }
 

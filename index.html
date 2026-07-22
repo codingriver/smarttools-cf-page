@@ -71,9 +71,38 @@
             document.head.appendChild(script);
         }
 
+        async function refreshInlineData(inlineScript) {
+            var etag = inlineScript.getAttribute('data-etag') || '';
+            try {
+                var response = await fetch('/api/data', {
+                    credentials: 'include',
+                    cache: 'default',
+                    headers: etag ? { 'If-None-Match': etag } : {}
+                });
+                if (response.status === 304) return { updated: false, status: 304 };
+                if (!response.ok) throw new Error('/api/data failed: ' + response.status);
+                var nextEtag = response.headers.get('ETag') || '';
+                if (etag && nextEtag && etag === nextEtag) return { updated: false, status: 200 };
+                runScript(await response.text(), '/api/data');
+                inlineScript.setAttribute('data-etag', nextEtag);
+                if (typeof window.__favPageReloadData === 'function') {
+                    window.__favPageReloadData();
+                }
+                return { updated: true, status: 200 };
+            } catch (error) {
+                console.warn('inline data refresh failed:', error && error.message);
+                return { updated: false, error: error && error.message };
+            }
+        }
+
         async function loadData() {
             if (location.protocol === 'file:') {
                 await appendScript('data.js');
+                return;
+            }
+            var inlineScript = document.querySelector('script[data-inline-data]');
+            if (inlineScript) {
+                window.__SmartToolsDataRefresh = refreshInlineData(inlineScript);
                 return;
             }
             try {

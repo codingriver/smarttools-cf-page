@@ -125,6 +125,7 @@ var currentEmailData = null;  // ★ 动态设置（首个 email 类型 section 
 var isAnimating      = false;
 var __allSections    = window.__sections || [];  // ★ 统一数据源
 var __privateAccess  = false;              // 当前 data.js 已包含 private section 时才显示
+var __favPageBooted  = false;
 
 function detectPrivateAccessFromLoadedData() {
     return (__allSections || []).some(function(sec) {
@@ -1082,15 +1083,12 @@ function renderAllSections(layout) {
     });
 }
 
-async function bootFavPage() {
-    try {
-        if (window.__SmartToolsDataReady && typeof window.__SmartToolsDataReady.then === 'function') {
-            await window.__SmartToolsDataReady;
-        }
-    } catch (e) {}
+function applyLoadedData() {
     applySiteConfig();
+    window.__sections = null;
     normalizeData();
     __allSections = window.__sections || [];
+
     try {
         var vi = window.__viewerInfo;
         if (vi && vi.isAdminView && !vi.slug) {
@@ -1102,12 +1100,31 @@ async function bootFavPage() {
 
     currentLayout = detectLayout();
     __privateAccess = detectPrivateAccessFromLoadedData();
+    currentExpanded = null;
+    currentEmailData = null;
+    __cardRegistry = {};
+    __expandableRegistry = {};
 
-    // ★ 初始化第一个 email section 的 currentEmailData
+    var overlay = document.getElementById('overlay');
+    if (overlay) overlay.classList.remove('active');
     var emailSec = __allSections.find(function(s) { return s.kind === 'email' && s.visible !== false; });
     if (emailSec && emailSec.cards && emailSec.cards.length) currentEmailData = emailSec.cards[0];
-
     renderAllSections(currentLayout);
+}
+
+window.__favPageReloadData = function() {
+    if (!__favPageBooted) return;
+    applyLoadedData();
+};
+
+async function bootFavPage() {
+    try {
+        if (window.__SmartToolsDataReady && typeof window.__SmartToolsDataReady.then === 'function') {
+            await window.__SmartToolsDataReady;
+        }
+    } catch (e) {}
+    applyLoadedData();
+    __favPageBooted = true;
 
     // 注释模块不参与首屏渲染；空闲时预热，用户提前点击时则按需立即加载。
     var warmNoteModal = function() {

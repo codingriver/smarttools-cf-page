@@ -6,11 +6,11 @@ import {
     readSplitSnapshot,
     stripPrivateSections
 } from '../_shared/data-split.js';
+import { publicDataCacheKey } from '../_shared/public-data-cache.js';
 
 const DATA_KEY = 'admin:data_js';
 const SOURCE_KEY = 'admin:data_source';
 const EMPTY_STUB = `/* data.js 尚未初始化 */\nvar sections = [];\n`;
-const PUBLIC_CACHE_VERSION = 'v1';
 
 function serializeForScript(value) {
     return JSON.stringify(value)
@@ -20,9 +20,7 @@ function serializeForScript(value) {
 }
 
 function publicCacheKey(request) {
-    const url = new URL('/api/data', request.url);
-    url.searchParams.set('__smarttools_public_cache', PUBLIC_CACHE_VERSION);
-    return new Request(url.toString(), { method: 'GET' });
+    return publicDataCacheKey(request);
 }
 
 async function readStaticData(request, env) {
@@ -133,7 +131,7 @@ export async function onRequestGet(context) {
         'Content-Type': 'application/javascript;charset=utf-8',
         'Cache-Control': isAdmin
             ? 'private, no-store'
-            : 'public, max-age=30, s-maxage=60, stale-while-revalidate=300',
+            : 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400',
         'ETag': responseEtag,
         'X-Content-Type-Options': 'nosniff',
         'X-Data-Version': fullMeta.version || '',

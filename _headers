@@ -6,3 +6,9 @@
 
 /config.html
   Cache-Control: no-cache
+
+/shared/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/extensions/*
+  Cache-Control: public, max-age=31536000, immutable

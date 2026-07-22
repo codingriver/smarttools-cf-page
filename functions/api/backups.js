@@ -4,6 +4,7 @@ import {
     readSplitSnapshot,
     writeSplitFromContent
 } from '../_shared/data-split.js';
+import { invalidatePublicDataCache } from '../_shared/public-data-cache.js';
 
 const NS = 'admin';
 const DATA_KEY = 'admin:data_js';
@@ -61,6 +62,7 @@ export async function onRequestPost({ request, env }) {
         env.FAV_KV.put('admin:data_source', 'kv'),
         writeSplitFromContent(env, NS, content)
     ]);
+    await invalidatePublicDataCache(request);
     return jsonResponse({ ok: true, namespace: NS });
 }
 

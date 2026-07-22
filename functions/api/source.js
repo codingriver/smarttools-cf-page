@@ -1,4 +1,5 @@
 import { requireAuth, jsonResponse } from '../_shared/auth.js';
+import { invalidatePublicDataCache } from '../_shared/public-data-cache.js';
 
 const SOURCE_KEY = 'admin:data_source';
 
@@ -27,5 +28,6 @@ export async function onRequestPost({ request, env }) {
         return jsonResponse({ ok: false, error: 'source 必须是 kv 或 static' }, 400);
     }
     await env.FAV_KV.put(SOURCE_KEY, body.source);
+    await invalidatePublicDataCache(request);
     return jsonResponse({ ok: true, source: body.source, namespace: 'admin' });
 }

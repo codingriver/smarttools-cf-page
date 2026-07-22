@@ -94,6 +94,21 @@ try {
     assert(subCardTypography.fontSize === '13px', `desktop compact sub-card font size is inconsistent: ${subCardTypography.fontSize}`);
     assert(subCardTypography.overflow === 'hidden' && subCardTypography.textOverflow === 'ellipsis' && subCardTypography.whiteSpace === 'nowrap', 'long compact sub-card text is not truncated');
 
+    const inlineContext = await browser.newContext();
+    const inlineHome = await inlineContext.newPage();
+    await inlineHome.route('**/api/data', async route => {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await route.continue();
+    });
+    await inlineHome.goto(base + '/', { waitUntil: 'domcontentloaded' });
+    if (await inlineHome.locator('script[data-inline-data]').count()) {
+        await inlineHome.locator('.link-card').first().waitFor({ timeout: 1000 });
+        assert(await inlineHome.locator('.link-card').count() >= 1, 'inline snapshot did not render before the API refresh');
+        await inlineHome.evaluate(() => window.__SmartToolsDataRefresh);
+        await inlineHome.getByText('Public Card', { exact: true }).waitFor({ timeout: 5000 });
+    }
+    await inlineContext.close();
+
     const legacyRoute = await publicContext.newPage();
     await legacyRoute.goto(base + '/index5.html', { waitUntil: 'domcontentloaded' });
     assert(new URL(legacyRoute.url()).pathname === '/', 'legacy theme route did not redirect home');
@@ -121,6 +136,7 @@ try {
         singleThemeRendered: true,
         legacyThemeRedirect: true,
         mobileRendered: true,
+        inlineSnapshotRendered: true,
         importExportControls: 9,
         errors: []
     }, null, 2));

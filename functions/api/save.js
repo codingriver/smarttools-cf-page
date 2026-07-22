@@ -6,6 +6,7 @@ import {
     readSplitSnapshot,
     writeSplitFromContent
 } from '../_shared/data-split.js';
+import { invalidatePublicDataCache } from '../_shared/public-data-cache.js';
 
 const NS = 'admin';
 const DATA_KEY = 'admin:data_js';
@@ -77,6 +78,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const meta = contentChanged ? await writeDataMeta(env, NS, content) : null;
+    if (contentChanged) await invalidatePublicDataCache(request);
     return jsonResponse({
         ok: true,
         backup: backupName,

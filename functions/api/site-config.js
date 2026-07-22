@@ -11,6 +11,7 @@ import {
     normalizeSiteConfig,
     readSiteConfig
 } from '../_shared/site-config.js';
+import { invalidatePublicDataCache } from '../_shared/public-data-cache.js';
 
 export async function onRequestGet({ request, env }) {
     return jsonResponse({ ok: true, ...await readSiteConfig(env) });
@@ -30,5 +31,6 @@ export async function onRequestPost({ request, env }) {
     const config = normalizeSiteConfig({ ...current, ...body }, current);
 
     await env.FAV_KV.put(ADMIN_SITE_CONFIG_KEY, JSON.stringify(config));
+    await invalidatePublicDataCache(request);
     return jsonResponse({ ok: true, ...config });
 }
