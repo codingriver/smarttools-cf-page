@@ -47,7 +47,8 @@
 ## 构建与部署
 
 - 构建命令：`npm run build`。
-- 部署命令：`npm run deploy`。
+- 本仓库中用户提到“部署”“上线”“发布”“Pages 项目”等相关词语时，默认指 Cloudflare Pages 项目 `smarttools`，除非用户明确指定其他项目。
+- 部署命令：`npm run deploy`，等价于部署 `dist/` 到 Cloudflare Pages 项目 `smarttools`。
 - 构建输出目录：`dist/`。
 - `scripts/prepare-deploy.mjs` 会复制白名单公开文件、内联首页运行时代码、可选内联线上公开数据快照，并给 shared 资源加指纹。
 - 如需禁用构建时线上快照，可使用 `SMARTTOOLS_INLINE_SNAPSHOT=0 npm run build`。
