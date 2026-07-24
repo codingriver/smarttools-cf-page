@@ -1,17 +1,18 @@
 # SmartTools Tabs Importer
 
-Quickly import all currently open browser tabs into your SmartTools bookmark manager.
+Quickly save the current page or import currently open browser tabs into your SmartTools bookmark manager.
 
 ## How It Works
 
 1. Open and log in to your SmartTools admin panel (`/config.html`)
 2. Click the extension icon in your browser toolbar
-3. Choose "Import current window tabs" or "Import all window tabs"
+3. Choose "Save current page", "Import current window tabs", or "Import all window tabs"
 4. Confirm in the SmartTools admin panel and save
 
 ## Features
 
-- **One-click import** — Grab all open tabs from the current window or every window at once
+- **One-click current page save** — Send only the active tab to SmartTools
+- **Batch import** — Grab all open tabs from the current window or every window at once
 - **Selective import** — Uncheck any tabs you don't want before importing
 - **Auto parent card** — All imported tabs become sub-cards under a single parent card you name
 - **Category assignment** — Choose which SmartTools category to import into; preference is saved
@@ -32,7 +33,7 @@ Source code: https://github.com/codingriver/SmartTools
 
 ## Privacy
 
-- The extension only reads tab titles and URLs when you click import
+- The extension only reads the active tab or open tab titles and URLs when you click import
 - All data goes directly to your own SmartTools instance — no third-party server is involved
 - Nothing is stored remotely; the backend URL is saved only in your local browser storage
 

@@ -17,15 +17,15 @@
 <body>
   <h1>Privacy Policy</h1>
   <p><strong>SmartTools Open Tabs Importer</strong></p>
-  <p>This Chrome/Edge extension is designed to import your currently open browser tabs into your personal SmartTools bookmark manager.</p>
+  <p>This Chrome/Edge extension is designed to save your current active page or import your currently open browser tabs into your personal SmartTools bookmark manager.</p>
 
   <h2>Data Collection</h2>
-  <p>The extension collects the <strong>title and URL</strong> of your currently open browser tabs only when you actively click the import button. No data is collected, transmitted, or stored remotely by the extension itself.</p>
+  <p>The extension collects the <strong>title and URL</strong> of your current active tab or currently open browser tabs only when you actively click the corresponding import button. No data is collected, transmitted, or stored remotely by the extension itself.</p>
   <p>All imported data is sent directly to your own SmartTools backend instance for storage — it does not go through any third-party server controlled by this extension.</p>
 
   <h2>Data Usage</h2>
   <ul>
-    <li>Read open tabs (titles and URLs) only at the user's explicit request</li>
+    <li>Read the active tab or open tabs (titles and URLs) only at the user's explicit request</li>
     <li>Send tab data to your own SmartTools backend via <code>window.postMessage</code></li>
     <li>Store the SmartTools backend URL locally in browser <code>chrome.storage</code> (local to your browser only)</li>
   </ul>
@@ -40,7 +40,7 @@
 
   <h2>Permissions Used</h2>
   <ul>
-    <li><code>tabs</code> — read tab titles and URLs for the import list</li>
+    <li><code>tabs</code> — read the active tab or tab titles and URLs for the import list</li>
     <li><code>scripting</code> — inject the import handshake script into the SmartTools config page</li>
     <li><code>storage</code> — save the backend URL and pending import state locally</li>
     <li><code><all_urls></code> — required to deliver import data to your SmartTools backend (which may be hosted at any domain you configure). The content script only performs work on your own SmartTools backend page.</li>

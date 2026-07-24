@@ -1,1 +1,1 @@
-Import open Chrome/Edge tabs into SmartTools — open-source bookmark manager.
+Save the current page or import open tabs into SmartTools bookmarks.

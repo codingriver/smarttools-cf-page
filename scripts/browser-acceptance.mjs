@@ -45,6 +45,29 @@ try {
         'btnIoHubExportBookmarks', 'btnIoHubImportOpenTabsClipboard'
     ]) assert(await configPage.locator('#' + id).count() === 1, `import/export control missing: ${id}`);
 
+    const sameSectionRootMove = await configPage.evaluate(() => {
+        store.usbDriveData = [
+            { id: 'move_root_a', type: 'simple', title: 'Move Root A', url: 'https://example.com/a' },
+            { id: 'move_root_b', type: 'simple', title: 'Move Root B', url: 'https://example.com/b' }
+        ];
+        currentSection = 'usbDriveData';
+        renderSectionTabs();
+        renderCurrentSection();
+        openMoveCardModal('usbDriveData', 0);
+        document.getElementById('move_section').value = 'usbDriveData';
+        renderMoveTargetList();
+        document.getElementById('move_target').value = '';
+        confirmMoveSubCard();
+        return {
+            ids: store.usbDriveData.map(card => card.id),
+            hidden: document.getElementById('moveModal').classList.contains('hidden')
+        };
+    });
+    assert(
+        sameSectionRootMove.hidden && sameSectionRootMove.ids.join(',') === 'move_root_b,move_root_a',
+        'same-section root card move did not append the card'
+    );
+
     const adminHome = await adminContext.newPage();
     const adminHomeRequests = [];
     adminHome.on('request', request => adminHomeRequests.push(new URL(request.url()).pathname));

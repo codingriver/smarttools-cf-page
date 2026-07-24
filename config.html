@@ -5111,7 +5111,6 @@ function confirmMoveSubCard() {
     if (movingItem.kind === 'card') {
         const srcArr = store[movingItem.sourceSection];
         if (!srcArr || !srcArr[movingItem.sourceCardIndex]) { toast(t('toastCardNotExist')); return; }
-        if (targetIndex < 0 && targetSection === movingItem.sourceSection) { toast(t('toastNeedTargetSec')); return; }
         srcArr.splice(movingItem.sourceCardIndex, 1);
     } else {
         const sourceSubs = editingCardDraft && editingCardDraft.subCards;

@@ -23,6 +23,7 @@
 
     <section class="group">
       <h2>发送标签到后台确认导入</h2>
+      <button id="importActive" class="primary-action" type="button">收藏当前页</button>
       <div class="btn-row">
         <button id="importCurrent" type="button">当前窗口标签</button>
         <button id="importAll" type="button">所有窗口标签</button>
@@ -68,7 +69,7 @@
     </section>
 
     <p id="status" class="status"></p>
-    <p class="hint">只处理 http/https 标签页，不包含 SmartTools 后台页本身。</p>
+    <p class="hint">“收藏当前页”只处理当前激活的 http/https 页面；批量导入不包含 SmartTools 后台页本身。</p>
   </main>
   <script src="popup.js"></script>
 </body>

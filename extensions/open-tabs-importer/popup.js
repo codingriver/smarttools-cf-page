@@ -11,6 +11,7 @@ const els = {
   saveUrl: requireElement('saveUrl'),
   openBackend: requireElement('openBackend'),
   openHome: requireElement('openHome'),
+  importActive: requireElement('importActive'),
   importCurrent: requireElement('importCurrent'),
   importAll: requireElement('importAll'),
   copyCurrent: requireElement('copyCurrent'),
@@ -135,11 +136,29 @@ function toPayloadTab(tab) {
 }
 
 async function collectTabs(scope, configUrl) {
-  const query = scope === 'all' ? {} : { currentWindow: true };
+  let query;
+  if (scope === 'all') {
+    query = {};
+  } else if (scope === 'active') {
+    query = { active: true, currentWindow: true };
+  } else {
+    query = { currentWindow: true };
+  }
   const tabs = await chrome.tabs.query(query);
   return tabs
     .filter(tab => isImportableUrl(tab.url) && !sameConfigPage(tab.url, configUrl))
     .map(toPayloadTab);
+}
+
+function importStatusMessage(scope, tabsLength, pending) {
+  if (scope === 'active') {
+    return pending
+      ? '已打开 SmartTools 后台，并准备收藏当前页'
+      : '已发送当前页到 SmartTools 后台';
+  }
+  return pending
+    ? `已打开 SmartTools 后台，并准备导入 ${tabsLength} 个标签`
+    : `已发送 ${tabsLength} 个标签到 SmartTools 后台`;
 }
 
 async function findConfigTab(configUrl) {
@@ -197,7 +216,7 @@ async function importTabs(scope) {
       }
     });
     await chrome.tabs.create({ url: configUrl, active: true });
-    setStatus(`已打开 SmartTools 后台，并准备导入 ${tabs.length} 个标签`, 'ok');
+    setStatus(importStatusMessage(scope, tabs.length, true), 'ok');
     return;
   }
 
@@ -213,7 +232,7 @@ async function importTabs(scope) {
     setStatus('后台页面还没准备好，请稍后再试', 'err');
     return;
   }
-  setStatus(`已发送 ${tabs.length} 个标签到 SmartTools 后台`, 'ok');
+  setStatus(importStatusMessage(scope, tabs.length, false), 'ok');
 }
 
 // Copy to clipboard as JSON
@@ -375,6 +394,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   els.saveUrl.addEventListener('click', saveConfigUrl);
   els.openBackend.addEventListener('click', openBackend);
   els.openHome.addEventListener('click', openHome);
+  els.importActive.addEventListener('click', () => importTabs('active'));
   els.importCurrent.addEventListener('click', () => importTabs('current'));
   els.importAll.addEventListener('click', () => importTabs('all'));
   els.copyCurrent.addEventListener('click', () => copyTabsToClipboard('current'));

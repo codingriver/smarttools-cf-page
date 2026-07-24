@@ -48,12 +48,14 @@ try {
 }
 
 const dist = path.resolve('dist');
-const [index, config, headers, routes, dataFunction, cacheInvalidators] = await Promise.all([
+const [index, config, headers, routes, dataFunction, extensionPopupHtml, extensionPopupJs, cacheInvalidators] = await Promise.all([
   fs.readFile(path.join(dist, 'index.html'), 'utf8'),
   fs.readFile(path.join(dist, 'config.html'), 'utf8'),
   fs.readFile(path.join(dist, '_headers'), 'utf8'),
   fs.readFile(path.join(dist, '_routes.json'), 'utf8').then(JSON.parse),
   fs.readFile(path.resolve('functions/api/data.js'), 'utf8'),
+  fs.readFile(path.join(dist, 'extensions/open-tabs-importer/popup.html'), 'utf8'),
+  fs.readFile(path.join(dist, 'extensions/open-tabs-importer/popup.js'), 'utf8'),
   Promise.all(['save.js', 'comment.js', 'source.js', 'site-config.js', 'backups.js']
     .map(file => fs.readFile(path.resolve('functions/api', file), 'utf8')))
 ]);
@@ -84,6 +86,9 @@ assert(/\/shared\/\*\s+Cache-Control: public, max-age=31536000, immutable/.test(
 assert(/\/extensions\/\*\s+Cache-Control: public, max-age=31536000, immutable/.test(headers), 'extensions immutable cache rule missing');
 assert(!routes.include.includes('/*') && !routes.include.includes('/'), 'homepage is still routed through Pages Functions');
 assert(dataFunction.includes('public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400'), 'public data cache policy is not optimized');
+assert(extensionPopupHtml.includes('id="importActive"') && extensionPopupHtml.includes('收藏当前页'), 'current-page import button missing from extension popup');
+assert(extensionPopupJs.includes("query = { active: true, currentWindow: true }"), 'current-page import does not query only the active tab');
+assert(extensionPopupJs.includes("importTabs('active')"), 'current-page import button is not bound to active import');
 assert(cacheInvalidators.every(source => source.includes('invalidatePublicDataCache')), 'a data mutation route does not invalidate the public cache');
 
 console.log(JSON.stringify({
@@ -92,6 +97,7 @@ console.log(JSON.stringify({
   backgroundCorrection: true,
   fingerprintedAssets: 6,
   immutableCacheRules: 2,
+  currentPageImportButton: true,
   homepageStaticRoute: true,
   publicDataCacheInvalidation: true
 }, null, 2));

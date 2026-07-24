@@ -4,7 +4,7 @@
 
 ### What the Extension Does
 
-This extension helps users import their currently open Chrome/Edge browser tabs into their personal SmartTools bookmark manager. SmartTools is a self-hosted bookmark tool — every user deploys it to their own domain (e.g., `https://smarttools-xxx.pages.dev`, `https://bookmarks.mydomain.com`, or a local deployment).
+This extension helps users save the current active page or import currently open Chrome/Edge browser tabs into their personal SmartTools bookmark manager. SmartTools is a self-hosted bookmark tool — every user deploys it to their own domain (e.g., `https://smarttools-xxx.pages.dev`, `https://bookmarks.mydomain.com`, or a local deployment).
 
 The critical challenge: **the extension cannot know the user's SmartTools domain in advance** because each user deploys SmartTools to their own hosting.
 
@@ -46,7 +46,7 @@ We considered these alternatives but they all have significant drawbacks:
 ### Security Notes
 
 - The extension requests the minimum permissions necessary for its import functionality.
-- `tabs` permission is used only to read tab titles, URLs, and favicon URLs — no browsing history or sensitive data.
+- `tabs` permission is used only to read the active tab or selected tab titles, URLs, and favicon URLs — no browsing history or sensitive data.
 - All imported data stays within the user's own browser and their own SmartTools deployment.
 - The extension does not communicate with any server other than the user's configured SmartTools backend.
 - No data is collected, aggregated, or sent to any third party.
