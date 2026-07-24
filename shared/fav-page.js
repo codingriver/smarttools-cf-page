@@ -789,6 +789,16 @@ function ensureSubCardsRendered(subcardId) {
     var record = __expandableRegistry[subcardId];
     if (!container || !record || container.getAttribute('data-rendered') === '1') return;
     var html = '';
+    var openableCount = getOpenableSubCardUrls(record).length;
+    if (openableCount > 0) {
+        html += '<div class="sub-cards-toolbar">' +
+            '<button type="button" class="open-all-subcards-btn" ' +
+            'onclick="openAllSubCards(\'' + subcardId + '\', event)" ' +
+            'title="打开所有子卡片链接">' +
+            '<span class="open-all-icon">↗</span><span class="open-all-label">全部打开</span>' +
+            '<span class="open-all-count">' + openableCount + '</span>' +
+            '</button></div>';
+    }
     (record.card.subCards || []).forEach(function(sc, idx) {
         html += generateSubCardHTML(sc, {
             sectionKey: record.meta.sectionKey,
@@ -798,6 +808,32 @@ function ensureSubCardsRendered(subcardId) {
     });
     container.innerHTML = html;
     container.setAttribute('data-rendered', '1');
+}
+
+function getOpenableSubCardUrls(record) {
+    var urls = [];
+    var seen = {};
+    if (!record || !record.card || !Array.isArray(record.card.subCards)) return urls;
+    record.card.subCards.forEach(function(sc) {
+        var url = __safeUrl(sc && sc.url);
+        if (!url || url === '#' || seen[url]) return;
+        seen[url] = true;
+        urls.push(url);
+    });
+    return urls;
+}
+
+function openAllSubCards(subcardId, event) {
+    if (event) {
+        if (event.preventDefault) event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
+    }
+    var urls = getOpenableSubCardUrls(__expandableRegistry[subcardId]);
+    if (!urls.length) return;
+    if (urls.length > 8 && !window.confirm('将打开 ' + urls.length + ' 个新标签页，是否继续？')) return;
+    urls.forEach(function(url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    });
 }
 
 function toggleSubCards(subcardId, button) {

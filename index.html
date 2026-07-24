@@ -583,6 +583,39 @@
         .hidden-cards .sub-cards { z-index: 70; }
         .sub-cards.expanded { opacity: 1; visibility: visible; transform: translateY(0); }
 
+        .sub-cards-toolbar {
+            display: flex; justify-content: flex-end;
+            margin-bottom: 6px;
+        }
+
+        .open-all-subcards-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            border: 1px solid var(--bd);
+            border-radius: 999px;
+            background: var(--bg-sub);
+            color: var(--tx2);
+            font-size: 11px; font-weight: 600;
+            line-height: 1; padding: 5px 8px;
+            cursor: pointer;
+            transition: all .15s ease;
+        }
+
+        .open-all-subcards-btn:hover {
+            background: var(--bg-sub-hov);
+            color: var(--ac);
+            border-color: var(--bd-hov);
+            transform: translateY(-1px);
+        }
+
+        .open-all-count {
+            min-width: 15px; height: 15px;
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 999px;
+            background: rgba(110,86,207,.10);
+            color: var(--ac);
+            font-size: 10px;
+        }
+
         /* 子卡片 <a> 包裹后的样式重置(支持中键后台打开,见 fav-page.js generateSubCardHTML) */
         a.sub-card { display: block; text-decoration: none; color: inherit; }
         a.sub-card:hover { text-decoration: none; }
