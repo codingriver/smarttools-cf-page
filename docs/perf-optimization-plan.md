@@ -10,10 +10,10 @@
 
 | 优先级 | 动作 | 收益 | 风险 |
 |---|---|---|---|
-| **P0 必做** | 拉长 `/api/data` 的浏览器缓存 + 保存时清边缘缓存 | 回访秒开；冷启动次数从"每 30s 一次"降到"每小时一次" | 极低 |
+| **P0 必做** | 首页公开数据写入本地缓存 400 天 + 拉长 `/api/data` 浏览器缓存 | 回访先用本地数据渲染，网络校正不阻塞首屏 | 极低 |
 | **P0 必做** | 静态资源改「内容哈希 URL + 1 年 immutable」 | 静态资源 1 年不再回源，满足"缓存≥1 年"诉求，且部署后自动刷新 | 低（改 build） |
 | **P1 建议** | 让 `index.html` 可被边缘缓存 | HTML TTFB 从 ~250ms 降到边缘命中 | 低 |
-| **P2 可选** | 构建时把首屏数据快照内联进 `index.html` | **首访也不用等 `/api/data`**，直接消灭 2 秒白屏 | 中（会让后台改数据需重新部署或后台刷新） |
+| **P2 已做** | 构建时把首屏数据快照内联进 `index.html` | **首访也不用等 `/api/data`**，直接消灭 2 秒白屏 | 中（会让后台改数据需重新部署或后台刷新） |
 
 ---
 
@@ -49,13 +49,13 @@
 见 [functions/api/data.js](../functions/api/data.js)：
 
 - 每次**未命中**都要：并行 3 次 KV 读取（`SOURCE_KEY`/`DATA_KEY`/split 快照）+ `readSiteConfig` + 对全量内容做 **SHA-256** + 剥离私有分类。
-- 响应头当前为：
+- 响应头优化前为：
   ```
   Cache-Control: public, max-age=30, s-maxage=60, stale-while-revalidate=300
   ```
   浏览器只缓存 30s、Worker 边缘缓存只 60s → **几乎每次访问都重算**。
 - 边缘缓存用的是 Worker 的 `caches.default`，**按机房（colo）本地**，`cf-cache-status` 恒为 `DYNAMIC`（CDN 层不缓存 Function 响应）。
-- [functions/api/save.js](../functions/api/save.js) 保存时**不主动清缓存**，靠 TTL 自然过期 → 说明数据本就是"最终一致"，与"不要求即时"吻合。
+- [functions/api/save.js](../functions/api/save.js) 等写入接口已主动清本机房公共缓存；其它机房可接受 TTL 内最终一致，与"不要求即时"吻合。
 
 ---
 
@@ -71,12 +71,13 @@
 
 ---
 
-## 3. P0-A：优化 `/api/data` 缓存（消灭重复的 2 秒）
+## 3. P0-A：优化 `/api/data` 和本地缓存（消灭重复的 2 秒）
 
 ### 3.1 思路
 
-- **浏览器缓存（`max-age`）大胆拉长** → 回访用户直接复用本地副本，**根本不发请求**。重用"昨天的收藏列表"完全符合"不要求即时"。
-- **Worker 边缘缓存（`s-maxage`）适度拉长** → 每个机房的重算频率从"每 60s"降到"每 1 小时"。
+- **首页 localStorage 缓存 400 天** → 回访先同步注入公开数据，**不用等 `/api/data`**。
+- **浏览器缓存（`max-age`）大胆拉长到 1 年** → 没有 localStorage 时也能复用 HTTP 本地副本。
+- **Worker 边缘缓存（`s-maxage`）适度拉长到 1 天** → 每个机房的重算频率从"每 60s"降到"每天一次"。
 - **保存时主动清缓存** → 后台改完立刻可见（管理员所在机房），不必等 TTL。
 
 ### 3.2 改动 1：调整响应缓存头
@@ -88,15 +89,16 @@
          'Content-Type': 'application/javascript;charset=utf-8',
          'Cache-Control': isAdmin
              ? 'private, no-store'
--            : 'public, max-age=30, s-maxage=60, stale-while-revalidate=300',
-+            : 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400',
+-            : 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400',
++            : 'public, max-age=31536000, s-maxage=86400, stale-while-revalidate=31536000',
          'ETag': responseEtag,
 ```
 
 含义：
-- `max-age=86400`：浏览器缓存 1 天（回访 0 请求）。
-- `s-maxage=3600`：每机房 Worker 缓存 1 小时才重算一次。
-- `stale-while-revalidate=86400`：过期后先返旧、后台刷新，避免用户等冷启动。
+- `max-age=31536000`：浏览器 HTTP 缓存 1 年。
+- `s-maxage=86400`：每机房 Worker 缓存 1 天才重算一次。
+- `stale-while-revalidate=31536000`：过期后先返旧、后台刷新，避免用户等冷启动。
+- 首页另用 `localStorage['smarttools:public-data-cache:v1']` 保存公开 JS 数据 400 天；命中后立即渲染，再用 `cache: 'no-cache'` 后台按 ETag 校正。
 
 > 若希望"更即时"，把 `s-maxage` 调小即可；若希望"更省算力"，调大即可。数据不即时，随便调。
 
@@ -123,7 +125,7 @@ if (contentChanged && typeof caches !== 'undefined') {
 }
 ```
 
-> ⚠️ **局限**：`caches.default` 是机房本地的，`delete` 只清管理员保存请求命中的那个机房。其它机房仍靠 `s-maxage=3600` 到期刷新。对"不要求即时"的书签站完全够用。
+> ⚠️ **局限**：`caches.default` 是机房本地的，`delete` 只清管理员保存请求命中的那个机房。其它机房仍靠 `s-maxage=86400` 到期刷新。对"不要求即时"的书签站完全够用。
 
 ### 3.4（可选进阶）全局即时失效 —— KV 代际号
 
@@ -226,7 +228,7 @@ await fingerprintHtml(outputDirectory, '404.html');
 
 ---
 
-## 6. P2（可选，收益最大）：构建时内联首屏数据快照
+## 6. P2（已落地，收益最大）：构建时内联首屏数据快照
 
 ### 6.1 目标
 
@@ -249,7 +251,7 @@ await fingerprintHtml(outputDirectory, '404.html');
    ```
 2. **运行时改造**内联加载器（[index.html](../index.html) `<head>` 内的 `loadData`）：
    - 若已存在内联数据（`document.querySelector('[data-inline-data]')`）→ **立即渲染**，首屏 0 等待。
-   - 随后**后台** `fetch('/api/data', { headers: { 'If-None-Match': 内联的etag } })`：
+   - 随后**后台** `fetch('/api/data', { cache: 'no-cache', headers: { 'If-None-Match': 内联的etag } })`：
      - 返回 `304` 或版本一致 → 不动。
      - 版本变化 → 重新注入并让 `fav-page` 重渲染（需 `fav-page.js` 支持二次渲染）。
 
@@ -257,9 +259,9 @@ await fingerprintHtml(outputDirectory, '404.html');
 
 - 后台改数据后，**新访客要等下次部署**才更新内联快照（老访客仍会被后台校正刷新）。
 - 内联使 `index.html` 增大约 13KB（Brotli 后约 +3KB），换取首屏 0 往返，值得。
-- 需要 `fav-page.js` 支持"数据变更后重渲染"，改动量中等——**可作为收尾阶段单独做**。
+- `fav-page.js` 已提供 `window.__favPageReloadData`，后台校正拿到新版本后可二次渲染。
 
-> 若暂不想改 `fav-page` 的二次渲染，可先只做"内联即渲染、版本一致则不重复请求"，跳过后台校正，接受"新数据需重新部署"。
+> 当前实现还会把公开数据写入 400 天 localStorage；构建内联快照缺失时，回访也能先用本地缓存秒渲染。
 
 ---
 
@@ -267,10 +269,10 @@ await fingerprintHtml(outputDirectory, '404.html');
 
 ### 7.1 建议顺序
 
-1. **P0-A**（§3）：改 `data.js` 缓存头 + `save.js` 清缓存 —— 立即见效、风险最低。
+1. **P0-A**（§3）：本地公开数据缓存 + `/api/data` 长缓存 + 写入后清缓存。
 2. **P0-B**（§4）：build 打哈希 + `_headers` 1 年缓存。
-3. **P1**（§5）：`index.html` 边缘缓存。
-4. **P2**（§6）：首屏数据内联（收尾）。
+3. **P2**（§6）：首屏数据内联 + 后台校正。
+4. **P1**（§5）：`index.html` 边缘缓存（可继续优化）。
 
 每步独立部署、独立验证。
 
@@ -286,7 +288,7 @@ npm run deploy         # wrangler pages deploy dist ...
 ```bash
 # 1) /api/data 缓存头应为长缓存
 curl -sS -D - -o /dev/null https://www.303066.xyz/api/data | grep -i cache-control
-#   期望: public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400
+#   期望: public, max-age=31536000, s-maxage=86400, stale-while-revalidate=31536000
 
 # 2) 冷/热 TTFB
 curl -sS -o /dev/null -w 'ttfb=%{time_starttransfer}s total=%{time_total}s\n' https://www.303066.xyz/api/data
@@ -318,7 +320,7 @@ npm run test:online
 
 所有改动均为配置/缓存值，风险可控：
 
-- **P0-A**：把 `data.js` 缓存头改回 `public, max-age=30, s-maxage=60, stale-while-revalidate=300`，删除 `save.js` 的清缓存代码块。
+- **P0-A**：把 `data.js` 缓存头改回旧值，并移除 `index.html` 里的 `smarttools:public-data-cache:v1` 本地缓存逻辑。
 - **P0-B**：还原 `_headers`，移除 `prepare-deploy.mjs` 的 `fingerprintHtml` 调用。
 - **P1**：还原 `functions/[[path]].js`。
 - **P2**：移除构建内联逻辑与加载器改造。
@@ -332,6 +334,6 @@ npm run test:online
 | 场景 | 优化前 | 优化后 |
 |---|---|---|
 | 首次访问（冷） | HTML 578ms + /api/data 冷 1.07s ≈ **2s** 白屏 | P0：≈ HTML + 边缘热 0.4s；P2：**首屏 0 往返** |
-| 回访（1 天内） | 仍要 /api/data ≈ 0.4~1s | 浏览器命中，收藏**瞬开** |
-| 后台改数据 | 60s 内生效 | 管理员机房**立即**，其它机房 ≤1h（可调） |
+| 回访（400 天内） | 仍要 /api/data ≈ 0.4~1s | localStorage 同步命中，收藏**瞬开** |
+| 后台改数据 | 60s 内生效 | 管理员机房**立即**，其它机房 ≤1 天（可调） |
 | 静态资源 | 4h 后回源校验 | **1 年**不回源，部署自动刷新 |

@@ -20,6 +20,7 @@ Private is server-side access control, not encryption:
 - `private: true` sections are stored as plaintext in KV and administrator backups.
 - Anonymous `/api/data` responses remove Private sections on the server.
 - The authenticated administrator receives and edits the complete data set.
+- The homepage may keep public-filtered data in browser localStorage for fast revisits; authenticated administrator responses remain `private, no-store` and are not written to that cache.
 - Cloudflare account administrators can still read KV plaintext.
 - The public repository's static `data.js` must not contain Private content.
 - Full exports may contain Private plaintext and must be stored securely.
@@ -87,3 +88,5 @@ The acceptance suite covers authentication, anonymous write denial, Private isol
 | POST | `/api/fetch-page-title` | Admin | Fetch a page title |
 
 Unknown `/api/*` routes return a JSON 404 response.
+
+Anonymous `/api/data` JavaScript responses are cacheable for long-lived public browsing. The homepage renders any safe public local cache first, then revalidates in the background; administrator responses keep no-store semantics.

@@ -71,7 +71,7 @@ assert(publicData.body.siteConfig && publicData.body.siteConfig.title === 'Smart
 const directJs = await request('/api/data');
 assert(directJs.response.status === 200, 'javascript data endpoint failed');
 assert(
-    (directJs.response.headers.get('cache-control') || '') === 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400',
+    (directJs.response.headers.get('cache-control') || '') === 'public, max-age=31536000, s-maxage=86400, stale-while-revalidate=31536000',
     'public data cache policy is invalid'
 );
 assert(!directJs.body.includes('Private Card') && directJs.body.includes('Public Card'), 'javascript response privacy filter failed');

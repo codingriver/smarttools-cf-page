@@ -20,6 +20,7 @@ Private 是服务端访问控制，不是数据加密：
 - `private: true` 的分类以明文保存在 KV 和管理员备份中。
 - 未登录请求会在 `/api/data` 服务端过滤 Private 分类。
 - 管理员登录后可以查看和编辑完整数据。
+- 首页可把已过滤的公开数据写入浏览器 localStorage 以加速回访；管理员完整响应仍保持 `private, no-store`，不会写入该长期缓存。
 - Cloudflare 账号管理员仍然可以读取 KV 明文。
 - 公共仓库中的静态 `data.js` 不应放置 Private 内容。
 - 完整导出文件可能包含 Private 明文，请妥善保管。
@@ -107,6 +108,8 @@ npm run deploy
 | POST | `/api/fetch-page-title` | 管理员 | 获取 URL 页面标题 |
 
 未知 `/api/*` 路由统一返回 JSON 404。
+
+匿名 `/api/data` JavaScript 响应允许长缓存。首页会优先渲染安全的公开本地缓存，再在后台按 ETag 校正；管理员响应继续使用 no-store 语义。
 
 ## 项目结构
 

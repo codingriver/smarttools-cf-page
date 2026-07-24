@@ -95,6 +95,24 @@ try {
     assert(publicHomeRequests.filter(path => path === '/api/data').length === 1, 'public homepage did not use one combined data request');
     assert(publicHomeRequests.filter(path => path === '/api/site-config').length === 0, 'public homepage requested site config separately');
     assert(await publicHome.title() === 'SmartTools Acceptance', 'merged site title was not applied');
+    await publicHome.evaluate(async () => {
+        if (window.__SmartToolsDataRefresh && typeof window.__SmartToolsDataRefresh.then === 'function') {
+            await window.__SmartToolsDataRefresh;
+        }
+    });
+    const publicDataCache = await publicHome.evaluate(() => {
+        const raw = localStorage.getItem('smarttools:public-data-cache:v1');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return {
+            ttlDays: Math.floor((parsed.expiresAt - Date.now()) / 86400000),
+            hasPublic: parsed.content.includes('Public Card') || parsed.content.includes('Inline Snapshot'),
+            hasPrivate: parsed.content.includes('Private Card'),
+            isAdminView: /isAdminView["']?\s*:\s*true/.test(parsed.content)
+        };
+    });
+    assert(publicDataCache && publicDataCache.ttlDays >= 365, 'homepage public data cache is not retained for at least one year');
+    assert(publicDataCache.hasPublic && !publicDataCache.hasPrivate && !publicDataCache.isAdminView, 'homepage public data cache is not safely public-only');
     assert(publicHomeRequests.filter(path => path === '/shared/note-modal.js').length === 0, 'note modal script loaded during the initial render');
     await publicHome.locator('.link-card .link-title').first().click();
     await publicHome.locator('.note-mask').waitFor();

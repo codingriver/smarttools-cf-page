@@ -55,6 +55,9 @@
     <!-- 尽早并行请求公开数据；在线响应同时注入站点配置和查看者身份。 -->
     <script>
     (function () {
+        var PUBLIC_DATA_CACHE_KEY = 'smarttools:public-data-cache:v1';
+        var PUBLIC_DATA_CACHE_TTL_MS = 400 * 24 * 60 * 60 * 1000;
+
         function appendScript(src) {
             return new Promise(function(resolve, reject) {
                 var script = document.createElement('script');
@@ -71,26 +74,86 @@
             document.head.appendChild(script);
         }
 
-        async function refreshInlineData(inlineScript) {
-            var etag = inlineScript.getAttribute('data-etag') || '';
+        function isPublicDataScript(text) {
+            if (!text) return false;
+            return /window\.__viewerInfo\s*=\s*\{[^;]*?["']?isAdminView["']?\s*:\s*false/.test(String(text)) &&
+                !/window\.__viewerInfo\s*=\s*\{[^;]*?["']?isAdminView["']?\s*:\s*true/.test(String(text));
+        }
+
+        function writePublicDataCache(text, etag) {
+            if (!isPublicDataScript(text)) return;
+            try {
+                var savedAt = Date.now();
+                localStorage.setItem(PUBLIC_DATA_CACHE_KEY, JSON.stringify({
+                    savedAt: savedAt,
+                    expiresAt: savedAt + PUBLIC_DATA_CACHE_TTL_MS,
+                    etag: etag || '',
+                    content: String(text || '')
+                }));
+            } catch (e) {}
+        }
+
+        function readPublicDataCache() {
+            try {
+                var raw = localStorage.getItem(PUBLIC_DATA_CACHE_KEY);
+                if (!raw) return null;
+                var cached = JSON.parse(raw);
+                if (!cached || typeof cached.content !== 'string' || !isPublicDataScript(cached.content)) {
+                    localStorage.removeItem(PUBLIC_DATA_CACHE_KEY);
+                    return null;
+                }
+                if (cached.expiresAt && cached.expiresAt < Date.now()) {
+                    localStorage.removeItem(PUBLIC_DATA_CACHE_KEY);
+                    return null;
+                }
+                return cached;
+            } catch (e) {
+                try { localStorage.removeItem(PUBLIC_DATA_CACHE_KEY); } catch (_) {}
+                return null;
+            }
+        }
+
+        function extendPublicDataCache(etag) {
+            var cached = readPublicDataCache();
+            if (!cached) return;
+            cached.savedAt = Date.now();
+            cached.expiresAt = cached.savedAt + PUBLIC_DATA_CACHE_TTL_MS;
+            if (etag) cached.etag = etag;
+            try {
+                localStorage.setItem(PUBLIC_DATA_CACHE_KEY, JSON.stringify(cached));
+            } catch (e) {}
+        }
+
+        async function refreshData(etag) {
             try {
                 var response = await fetch('/api/data', {
                     credentials: 'include',
-                    cache: 'default',
+                    cache: 'no-cache',
                     headers: etag ? { 'If-None-Match': etag } : {}
                 });
-                if (response.status === 304) return { updated: false, status: 304 };
+                if (response.status === 304) {
+                    extendPublicDataCache(etag);
+                    return { updated: false, status: 304 };
+                }
                 if (!response.ok) throw new Error('/api/data failed: ' + response.status);
                 var nextEtag = response.headers.get('ETag') || '';
-                if (etag && nextEtag && etag === nextEtag) return { updated: false, status: 200 };
-                runScript(await response.text(), '/api/data');
-                inlineScript.setAttribute('data-etag', nextEtag);
+                var text = await response.text();
+                if (etag && nextEtag && etag === nextEtag) {
+                    if (response.headers.get('X-Private-Filtered') === '1') {
+                        writePublicDataCache(text, nextEtag);
+                    }
+                    return { updated: false, status: 200 };
+                }
+                runScript(text, '/api/data');
+                if (response.headers.get('X-Private-Filtered') === '1') {
+                    writePublicDataCache(text, nextEtag);
+                }
                 if (typeof window.__favPageReloadData === 'function') {
                     window.__favPageReloadData();
                 }
                 return { updated: true, status: 200 };
             } catch (error) {
-                console.warn('inline data refresh failed:', error && error.message);
+                console.warn('data refresh failed:', error && error.message);
                 return { updated: false, error: error && error.message };
             }
         }
@@ -102,13 +165,24 @@
             }
             var inlineScript = document.querySelector('script[data-inline-data]');
             if (inlineScript) {
-                window.__SmartToolsDataRefresh = refreshInlineData(inlineScript);
+                writePublicDataCache(inlineScript.text || inlineScript.textContent || '', inlineScript.getAttribute('data-etag') || '');
+                window.__SmartToolsDataRefresh = refreshData(inlineScript.getAttribute('data-etag') || '');
+                return;
+            }
+            var cached = readPublicDataCache();
+            if (cached) {
+                runScript(cached.content, 'smarttools-public-data-cache.js');
+                window.__SmartToolsDataRefresh = refreshData(cached.etag || '');
                 return;
             }
             try {
                 var response = await fetch('/api/data', { credentials: 'include', cache: 'default' });
                 if (!response.ok) throw new Error('/api/data failed: ' + response.status);
-                runScript(await response.text(), '/api/data');
+                var text = await response.text();
+                runScript(text, '/api/data');
+                if (response.headers.get('X-Private-Filtered') === '1') {
+                    writePublicDataCache(text, response.headers.get('ETag') || '');
+                }
             } catch (error) {
                 console.warn('online data load failed, fallback to data.js:', error && error.message);
                 await appendScript('data.js');

@@ -64,6 +64,7 @@ assert(index.includes('data-inline-data="1"'), 'inline snapshot marker missing')
 assert(index.includes('data-etag="W/&quot;build-acceptance&quot;"'), 'inline snapshot ETag missing');
 assert(index.includes('Inline <\\/script> Snapshot'), 'inline snapshot was not script-safe');
 assert(index.includes('__SmartToolsDataRefresh') && index.includes('__favPageReloadData'), 'background data correction missing');
+assert(index.includes('smarttools:public-data-cache:v1') && index.includes('PUBLIC_DATA_CACHE_TTL_MS'), 'homepage public data local cache missing');
 
 for (const reference of [
   'shared/emoji-data.js',
@@ -85,7 +86,7 @@ for (const reference of ['shared/note-modal.js', 'shared/note-modal.css']) {
 assert(/\/shared\/\*\s+Cache-Control: public, max-age=31536000, immutable/.test(headers), 'shared immutable cache rule missing');
 assert(/\/extensions\/\*\s+Cache-Control: public, max-age=31536000, immutable/.test(headers), 'extensions immutable cache rule missing');
 assert(!routes.include.includes('/*') && !routes.include.includes('/'), 'homepage is still routed through Pages Functions');
-assert(dataFunction.includes('public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400'), 'public data cache policy is not optimized');
+assert(dataFunction.includes('public, max-age=31536000, s-maxage=86400, stale-while-revalidate=31536000'), 'public data cache policy is not optimized');
 assert(extensionPopupHtml.includes('id="importActive"') && extensionPopupHtml.includes('收藏当前页'), 'current-page import button missing from extension popup');
 assert(extensionPopupJs.includes("query = { active: true, currentWindow: true }"), 'current-page import does not query only the active tab');
 assert(extensionPopupJs.includes("importTabs('active')"), 'current-page import button is not bound to active import');

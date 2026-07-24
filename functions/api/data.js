@@ -11,6 +11,7 @@ import { publicDataCacheKey } from '../_shared/public-data-cache.js';
 const DATA_KEY = 'admin:data_js';
 const SOURCE_KEY = 'admin:data_source';
 const EMPTY_STUB = `/* data.js 尚未初始化 */\nvar sections = [];\n`;
+const PUBLIC_DATA_CACHE_CONTROL = 'public, max-age=31536000, s-maxage=86400, stale-while-revalidate=31536000';
 
 function serializeForScript(value) {
     return JSON.stringify(value)
@@ -131,7 +132,7 @@ export async function onRequestGet(context) {
         'Content-Type': 'application/javascript;charset=utf-8',
         'Cache-Control': isAdmin
             ? 'private, no-store'
-            : 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400',
+            : PUBLIC_DATA_CACHE_CONTROL,
         'ETag': responseEtag,
         'X-Content-Type-Options': 'nosniff',
         'X-Data-Version': fullMeta.version || '',
