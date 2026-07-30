@@ -59,63 +59,63 @@
  * 基础外观变量
  * ============================================================ */
 .note-mask {
-    --nm-mask-bg: rgba(20, 15, 45, 0.55);
-    --nm-box-bg: #ffffff;
-    --nm-box-border: transparent;
-    --nm-box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    --nm-mask-bg: rgba(18, 63, 54, 0.48);
+    --nm-box-bg: #fffefb;
+    --nm-box-border: #9cbcaf;
+    --nm-box-shadow: 0 22px 64px rgba(18,63,54,0.24);
 
-    --nm-text: #333;
-    --nm-text-secondary: #666;
-    --nm-text-muted: #aaa;
-    --nm-title-color: #333;
-    --nm-border-soft: #eee;
+    --nm-text: #25423a;
+    --nm-text-secondary: #61736d;
+    --nm-text-muted: #9aa9a3;
+    --nm-title-color: #153c33;
+    --nm-border-soft: #d6e1d9;
 
-    --nm-close-color: #999;
-    --nm-close-hover-bg: #f2f3f7;
-    --nm-close-hover-color: #333;
+    --nm-close-color: #7d8f89;
+    --nm-close-hover-bg: #e2f2ec;
+    --nm-close-hover-color: #153c33;
 
     /* ★ hover 底色加深 + inset 阴影强化边界 */
-    --nm-body-hover: rgba(102,126,234,0.20);
-    --nm-body-hover-border: rgba(102,126,234,0.35);
+    --nm-body-hover: rgba(22,122,104,0.13);
+    --nm-body-hover-border: rgba(22,122,104,0.30);
 
     /* ★ 全页面波纹颜色 */
-    --nm-ripple-color: rgba(102,126,234,0.55);
+    --nm-ripple-color: rgba(22,122,104,0.48);
 
-    --nm-accent: #667eea;
-    --nm-accent-hover: #5566dd;
+    --nm-accent: #167a68;
+    --nm-accent-hover: #0f5f52;
 
-    --nm-code-bg: #f3f4f8;
-    --nm-code-color: #c0392b;
-    --nm-pre-bg: #2d2d2d;
-    --nm-pre-color: #f8f8f2;
-    --nm-quote-bg: #f7f8fc;
-    --nm-quote-border: #667eea;
-    --nm-quote-color: #555;
-    --nm-table-head-bg: #f7f8fc;
-    --nm-table-border: #ddd;
-    --nm-strong-color: #222;
-    --nm-heading-color: #222;
+    --nm-code-bg: #edf5f0;
+    --nm-code-color: #a33e3e;
+    --nm-pre-bg: #173d34;
+    --nm-pre-color: #f2f8f4;
+    --nm-quote-bg: #f0f6f1;
+    --nm-quote-border: #167a68;
+    --nm-quote-color: #526861;
+    --nm-table-head-bg: #f0f6f1;
+    --nm-table-border: #d6e1d9;
+    --nm-strong-color: #153c33;
+    --nm-heading-color: #153c33;
 
-    --nm-editor-bg: #fff;
-    --nm-editor-border: #ddd;
-    --nm-editor-focus: #667eea;
-    --nm-editor-focus-ring: rgba(102,126,234,0.15);
-    --nm-editor-text: #333;
+    --nm-editor-bg: #fffefb;
+    --nm-editor-border: #d6e1d9;
+    --nm-editor-focus: #167a68;
+    --nm-editor-focus-ring: rgba(22,122,104,0.13);
+    --nm-editor-text: #25423a;
 
-    --nm-toolbar-bg: #fafbff;
-    --nm-toolbar-btn-color: #555;
-    --nm-toolbar-btn-hover-bg: #eef0f8;
-    --nm-toolbar-btn-hover-color: #667eea;
-    --nm-toolbar-sep: #e0e3ec;
+    --nm-toolbar-bg: #f5f9f5;
+    --nm-toolbar-btn-color: #526861;
+    --nm-toolbar-btn-hover-bg: #e2f2ec;
+    --nm-toolbar-btn-hover-color: #167a68;
+    --nm-toolbar-sep: #d6e1d9;
 
-    --nm-btn-secondary-bg: #f0f1f5;
-    --nm-btn-secondary-hover: #e5e6eb;
-    --nm-btn-secondary-color: #555;
+    --nm-btn-secondary-bg: #edf3ef;
+    --nm-btn-secondary-hover: #e2ece6;
+    --nm-btn-secondary-color: #526861;
 
-    --nm-btn-primary-bg: linear-gradient(135deg, #667eea, #764ba2);
+    --nm-btn-primary-bg: #167a68;
     --nm-btn-primary-color: #fff;
-    --nm-btn-primary-shadow: 0 3px 10px rgba(102,126,234,0.35);
-    --nm-btn-primary-shadow-h: 0 5px 14px rgba(102,126,234,0.45);
+    --nm-btn-primary-shadow: 0 3px 10px rgba(22,122,104,0.25);
+    --nm-btn-primary-shadow-h: 0 5px 14px rgba(22,122,104,0.34);
 
     --nm-btn-danger-bg: transparent;
     --nm-btn-danger-color: #c0392b;
@@ -146,7 +146,7 @@
     z-index: 2;
     background: var(--nm-box-bg);
     border: 1px solid var(--nm-box-border);
-    border-radius: 14px;
+    border-radius: 14px 14px 26px 14px;
     width: 100%; max-width: 540px; max-height: 85vh;
     overflow: hidden;
     display: flex; flex-direction: column;

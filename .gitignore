@@ -6,14 +6,22 @@ Thumbs.db
 # 密钥 / 环境变量(绝对不能上 git)
 .env
 .env.local
+.env.*
 .env.*.local
+.dev.vars.*
 .dev.vars
+!.env.example
+!.env.*.example
 
 # Cloudflare 本地缓存
 .wrangler/
 
 # 生产发布目录（由 npm run build 生成）
 dist/
+
+# 验收 / 性能 / 截图产物
+# 已跟踪的历史 artifacts 不受本规则影响；新增产物默认不上 git
+artifacts/
 
 # 数据备份(本地导出的归档,可能含真实卡片数据)
 databak/*.js
@@ -23,6 +31,8 @@ databak/*.zip
 # AI 助手内部文档(规划/会话日志/本地权限/草稿)
 # 内部决策、KV 键名、调试密码等不公开
 .claude/
+.workbuddy/
+.tmp-smarttools-test/
 
 # 临时备份与归档
 *.bak

@@ -8,6 +8,9 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+const acceptanceRoot = path.resolve('.wrangler');
+await fs.mkdir(acceptanceRoot, { recursive: true });
+const acceptanceOutput = await fs.mkdtemp(path.join(acceptanceRoot, 'build-acceptance-'));
 const snapshotBody = `window.__siteConfig = { title: "Inline Snapshot" };\n` +
   `window.__viewerInfo = { isAdminView: false };\n` +
   `var sections = [{ key: "inline_fixture", kind: "card", label: "Inline", visible: true, cards: [` +
@@ -35,7 +38,12 @@ try {
   const snapshotUrl = `http://127.0.0.1:${address.port}/api/data`;
   const child = spawn(process.execPath, ['scripts/prepare-deploy.mjs'], {
     cwd: process.cwd(),
-    env: { ...process.env, SMARTTOOLS_SNAPSHOT_URL: snapshotUrl },
+    env: {
+      ...process.env,
+      SMARTTOOLS_SNAPSHOT_URL: snapshotUrl,
+      SMARTTOOLS_OUTPUT_DIR: path.relative(process.cwd(), acceptanceOutput),
+      SMARTTOOLS_OUTPUT_CLEAN: '0'
+    },
     stdio: 'inherit'
   });
   const exitCode = await new Promise((resolve, reject) => {
@@ -47,8 +55,8 @@ try {
   await new Promise(resolve => server.close(resolve));
 }
 
-const dist = path.resolve('dist');
-const [index, config, headers, routes, dataFunction, extensionPopupHtml, extensionPopupJs, cacheInvalidators] = await Promise.all([
+const dist = acceptanceOutput;
+const [index, config, headers, routes, dataFunction, extensionPopupHtml, extensionPopupJs, cacheInvalidators, accountSecuritySources] = await Promise.all([
   fs.readFile(path.join(dist, 'index.html'), 'utf8'),
   fs.readFile(path.join(dist, 'config.html'), 'utf8'),
   fs.readFile(path.join(dist, '_headers'), 'utf8'),
@@ -57,7 +65,13 @@ const [index, config, headers, routes, dataFunction, extensionPopupHtml, extensi
   fs.readFile(path.join(dist, 'extensions/open-tabs-importer/popup.html'), 'utf8'),
   fs.readFile(path.join(dist, 'extensions/open-tabs-importer/popup.js'), 'utf8'),
   Promise.all(['save.js', 'comment.js', 'source.js', 'site-config.js', 'backups.js']
-    .map(file => fs.readFile(path.resolve('functions/api', file), 'utf8')))
+    .map(file => fs.readFile(path.resolve('functions/api', file), 'utf8'))),
+  Promise.all([
+    'functions/_shared/account-security.js',
+    'functions/api/account/change-password.js',
+    'functions/api/account/security.js',
+    'functions/api/account/recovery.js'
+  ].map(file => fs.readFile(path.resolve(file), 'utf8')))
 ]);
 
 assert(index.includes('data-inline-data="1"'), 'inline snapshot marker missing');
@@ -91,6 +105,10 @@ assert(extensionPopupHtml.includes('id="importActive"') && extensionPopupHtml.in
 assert(extensionPopupJs.includes("query = { active: true, currentWindow: true }"), 'current-page import does not query only the active tab');
 assert(extensionPopupJs.includes("importTabs('active')"), 'current-page import button is not bound to active import');
 assert(cacheInvalidators.every(source => source.includes('invalidatePublicDataCache')), 'a data mutation route does not invalidate the public cache');
+assert(config.includes('id="btnAccountSecurity"') && config.includes('id="passwordRecoveryModal"'), 'account security UI missing from build');
+assert(!config.includes('PASSWORD_RECOVERY_TOKEN='), 'recovery token assignment leaked into the admin build');
+assert(accountSecuritySources.every(source => !/console\.(?:log|debug|info)\s*\(/.test(source)), 'account security code logs sensitive request data');
+assert(!accountSecuritySources.join('\n').includes('body.password'), 'account security code exposes a generic plaintext password field');
 
 console.log(JSON.stringify({
   ok: true,
@@ -100,5 +118,7 @@ console.log(JSON.stringify({
   immutableCacheRules: 2,
   currentPageImportButton: true,
   homepageStaticRoute: true,
-  publicDataCacheInvalidation: true
+  publicDataCacheInvalidation: true,
+  accountSecurityUi: true,
+  sensitiveLogging: false
 }, null, 2));

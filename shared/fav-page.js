@@ -103,6 +103,8 @@ function normalizeData() {
  * ════════════════════════════════════════════════════════════════════════════════ */
 function applySiteConfig() {
     var cfg = window.__siteConfig;
+    var subCardLayout = cfg && cfg.subCardLayout === 'directory' ? 'directory' : 'classic';
+    document.documentElement.setAttribute('data-subcard-layout', subCardLayout);
     if (!cfg || typeof cfg !== 'object') return;
     var titleEl = document.querySelector('.title');
     if (cfg.title) {
@@ -347,11 +349,16 @@ function __safeUrl(u) {
     return '#';
 }
 
-/** 工具：图片 URL 白名单（iconImg）→ 允许 data:image/ + http(s) + 相对路径 */
+/** 工具：图片 URL 白名单（iconImg）→ 允许 data:image/ + 相对路径 + 同域；
+ *  外部 http(s) 图标统一走同域代理 /api/icon，避免第三方防盗链 / 跨域 403，
+ *  并让 Service Worker 可缓存（离线可用）。 */
 function __safeImgUrl(u) {
     var s = String(u == null ? '' : u).trim();
     if (!s) return '';
-    if (/^(?:https?:|\/|data:image\/[a-zA-Z+.-]+;)/i.test(s)) return s;
+    if (/^https?:\/\//i.test(s)) {
+        try { return '/api/icon?u=' + encodeURIComponent(s); } catch (_) { return ''; }
+    }
+    if (/^(?:\/|data:image\/[a-zA-Z+.-]+;)/i.test(s)) return s;
     return '';
 }
 
@@ -468,20 +475,46 @@ function sanitizeSVG(raw) {
         .replace(/(?:href|xlink:href)\s*=\s*["']\s*javascript:/gi, 'data-removed="javascript-uri"');
 }
 
+function getIconFallbackText(item) {
+    var label = item && (item.title || item.content || item.desc || item.note) || '';
+    var first = String(label).trim().charAt(0);
+    return first ? first.toUpperCase() : '↗';
+}
+
+function renderImageIcon(src, item, extraAttrs, sourceClass) {
+    return '<span class="link-icon link-icon-image ' + (sourceClass || '') + '" ' + (extraAttrs || '') + ' aria-hidden="true">' +
+        '<img src="' + __attr(src) + '" alt="" width="24" height="24" loading="lazy" decoding="async" fetchpriority="low" ' +
+        'onerror="this.parentElement.classList.add(\'icon-load-failed\');this.remove();" />' +
+        '<span class="link-icon-fallback">' + __txt(getIconFallbackText(item)) + '</span></span>';
+}
+
 function renderIcon(item, extraAttrs) {
     extraAttrs = extraAttrs || '';
     if (item.iconImg) {
         var safeImg = __safeImgUrl(item.iconImg);
-        if (safeImg) {
-            return '<span class="link-icon" ' + extraAttrs + ' aria-hidden="true"><img src="' + __attr(safeImg) + '" alt="" width="24" height="24" loading="lazy" decoding="async" fetchpriority="low" onerror="this.style.display=\'none\';" /></span>';
-        }
-        return '<span class="link-icon" ' + extraAttrs + ' aria-hidden="true"></span>';
+        if (safeImg) return renderImageIcon(safeImg, item, extraAttrs, 'link-icon-configured');
+        return '<span class="link-icon icon-load-failed" ' + extraAttrs + ' aria-hidden="true"><span class="link-icon-fallback">' + __txt(getIconFallbackText(item)) + '</span></span>';
     }
     var icon = item.icon || '';
     if (icon.charAt(0) === '<') {
         return '<span class="link-icon link-icon-svg" ' + extraAttrs + '>' + sanitizeSVG(icon) + '</span>';
     }
     return '<span class="link-icon" ' + extraAttrs + '>' + __txt(icon) + '</span>';
+}
+
+function renderSubCardIcon(item) {
+    if (item.iconImg || item.icon) return renderIcon(item);
+    if (document.documentElement.getAttribute('data-subcard-layout') === 'directory') {
+        var safeUrl = __safeUrl(item.url);
+        if (/^https?:/i.test(safeUrl)) {
+            try {
+                var faviconUrl = new URL('/favicon.ico', safeUrl).href;
+                return renderImageIcon(faviconUrl, item, '', 'link-icon-favicon');
+            } catch (e) {}
+        }
+        return '<span class="link-icon icon-load-failed" aria-hidden="true"><span class="link-icon-fallback">' + __txt(getIconFallbackText(item)) + '</span></span>';
+    }
+    return renderIcon(item);
 }
 
 
@@ -590,7 +623,7 @@ function generateCardHTML(card, meta) {
  */
 function generateSubCardHTML(sc, meta) {
     var cid      = __registerCard(sc, meta || {});
-    var iconHTML = renderIcon(sc);
+    var iconHTML = renderSubCardIcon(sc);
     var noteCls  = __noteCls(sc);
     var hasUrl   = !!__safeUrl(sc.url);
 

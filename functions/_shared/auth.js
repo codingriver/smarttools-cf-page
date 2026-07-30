@@ -1,5 +1,7 @@
 // 单管理员鉴权工具。带下划线前缀的目录不会成为 Pages 路由。
 
+import { readCredentialState } from './account-security.js';
+
 const encoder = new TextEncoder();
 
 function bytesToBase64Url(bytes) {
@@ -38,11 +40,12 @@ export function getSecret(env) {
     return typeof secret === 'string' && secret.length >= 16 ? secret : null;
 }
 
-export async function createToken(username, secret, days = 7) {
+export async function createToken(username, secret, days = 7, sessionVersion = 0) {
     if (!secret) throw new Error('AUTH_SECRET 未配置');
     const payload = encodePayload({
         u: username,
         role: 'admin',
+        sv: Number.isSafeInteger(sessionVersion) ? sessionVersion : 0,
         exp: Date.now() + days * 86400 * 1000
     });
     const key = await importHmacKey(secret, ['sign']);
@@ -83,7 +86,9 @@ export async function getPayload(request, env) {
     const adminUser = env && env.ADMIN_USER;
     if (!secret || !adminUser) return null;
     const payload = await verifyToken(getCookieToken(request), secret);
-    return payload && payload.u === adminUser ? payload : null;
+    if (!payload || payload.u !== adminUser) return null;
+    const credentials = await readCredentialState(env);
+    return payload.sv === credentials.sessionVersion ? payload : null;
 }
 
 export async function requireAuth(request, env) {

@@ -2,7 +2,7 @@
 // POST /api/site-config  → 保存网站配置（需登录）
 //
 // 配置结构：
-//   { title: string, header: string, footer: string, autoBackupEnabled: boolean, backupRetention: number, deleteConfirmEnabled: boolean }
+//   { title: string, header: string, footer: string, subCardLayout: 'classic' | 'directory', autoBackupEnabled: boolean, backupRetention: number, deleteConfirmEnabled: boolean }
 // 空字符串表示使用页面默认内容。
 
 import { requireAuth, jsonResponse } from '../_shared/auth.js';

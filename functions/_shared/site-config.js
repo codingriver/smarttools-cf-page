@@ -1,13 +1,21 @@
 export const ADMIN_SITE_CONFIG_KEY = 'admin:site_config';
 
+export const SUB_CARD_LAYOUTS = Object.freeze(['classic', 'directory']);
+
 export const DEFAULT_SITE_CONFIG = Object.freeze({
     title: '',
     header: '',
     footer: '',
+    subCardLayout: 'classic',
     autoBackupEnabled: false,
     backupRetention: 30,
     deleteConfirmEnabled: true
 });
+
+export function normalizeSubCardLayout(value, fallback = DEFAULT_SITE_CONFIG.subCardLayout) {
+    const normalizedFallback = SUB_CARD_LAYOUTS.includes(fallback) ? fallback : DEFAULT_SITE_CONFIG.subCardLayout;
+    return SUB_CARD_LAYOUTS.includes(value) ? value : normalizedFallback;
+}
 
 export function normalizeBackupRetention(value, fallback = DEFAULT_SITE_CONFIG.backupRetention) {
     const n = Number(value);
@@ -23,6 +31,9 @@ export function normalizeSiteConfig(value = {}, fallback = DEFAULT_SITE_CONFIG) 
         title: source.title != null ? String(source.title) : String(fallback.title || ''),
         header: source.header != null ? String(source.header) : String(fallback.header || ''),
         footer: source.footer != null ? String(source.footer) : String(fallback.footer || ''),
+        subCardLayout: source.subCardLayout != null
+            ? normalizeSubCardLayout(source.subCardLayout, fallback.subCardLayout)
+            : normalizeSubCardLayout(fallback.subCardLayout),
         autoBackupEnabled: source.autoBackupEnabled != null
             ? source.autoBackupEnabled === true
             : fallback.autoBackupEnabled === true,

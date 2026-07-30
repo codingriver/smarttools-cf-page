@@ -6,7 +6,11 @@ import { transform } from 'esbuild';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, '..');
-const outputDirectory = path.join(projectRoot, 'dist');
+const requestedOutputDirectory = process.env.SMARTTOOLS_OUTPUT_DIR || 'dist';
+const outputDirectory = path.resolve(projectRoot, requestedOutputDirectory);
+if (outputDirectory === projectRoot || !outputDirectory.startsWith(projectRoot + path.sep)) {
+  throw new Error('SMARTTOOLS_OUTPUT_DIR must stay inside the project directory');
+}
 const snapshotUrl = process.env.SMARTTOOLS_SNAPSHOT_URL || 'https://www.303066.xyz/api/data';
 
 const publicEntries = [
@@ -19,11 +23,81 @@ const publicEntries = [
   'extensions',
   'index.html',
   'robots.txt',
-  'shared'
+  'shared',
+  'sw.js'
 ];
 
-await rm(outputDirectory, { recursive: true, force: true });
+if (process.env.SMARTTOOLS_OUTPUT_CLEAN !== '0') {
+  await rm(outputDirectory, { recursive: true, force: true });
+}
 await mkdir(outputDirectory, { recursive: true });
+
+// ---- 图标本地化：构建期把公开图标下载到 dist/icons/，改写引用为同域路径 ----
+// 下载失败的图标保留原外部 URL，改由运行时浏览器同域代理 /api/icon 兜底（绝不 403）。
+const iconMap = new Map();
+const iconsDir = path.join(outputDirectory, 'icons');
+
+function extFromUrl(urlString, contentType) {
+  try {
+    const u = new URL(urlString);
+    const base = path.basename(u.pathname.split('?')[0]);
+    const m = base.match(/\.([a-zA-Z0-9]+)$/);
+    if (m) return '.' + m[1].toLowerCase();
+  } catch (_) {}
+  const ct = (contentType || '').toLowerCase();
+  if (ct.includes('svg')) return '.svg';
+  if (ct.includes('png')) return '.png';
+  if (ct.includes('jpeg') || ct.includes('jpg')) return '.jpg';
+  if (ct.includes('gif')) return '.gif';
+  if (ct.includes('webp')) return '.webp';
+  if (ct.includes('ico')) return '.ico';
+  if (ct.includes('bmp')) return '.bmp';
+  return '.img';
+}
+
+async function downloadIcon(originalUrl) {
+  if (iconMap.has(originalUrl)) return iconMap.get(originalUrl);
+  iconMap.set(originalUrl, null); // 占位，避免同一 URL 重复下载
+  try {
+    await mkdir(iconsDir, { recursive: true });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(originalUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: { 'User-Agent': 'SmartTools-Build/1.0', 'Accept': 'image/*,*/*' }
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!buf.length || buf.length > 5 * 1024 * 1024) return null;
+    const ext = extFromUrl(originalUrl, res.headers.get('content-type'));
+    const hash = createHash('sha256').update(originalUrl).digest('hex').slice(0, 12);
+    const name = hash + ext;
+    await writeFile(path.join(iconsDir, name), buf);
+    const local = '/icons/' + name;
+    iconMap.set(originalUrl, local);
+    return local;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function localizeIconUrls(text) {
+  if (typeof text !== 'string' || !text.includes('iconImg')) return text;
+  const re = /(iconImg:\s*['"])(https?:\/\/[^'"]+)(['"])/g;
+  const urls = new Set();
+  let m;
+  while ((m = re.exec(text)) !== null) urls.add(m[2]);
+  for (const u of urls) {
+    await downloadIcon(u);
+  }
+  return text.replace(/(iconImg:\s*['"])(https?:\/\/[^'"]+)(['"])/g, (full, pre, u, post) => {
+    const local = iconMap.get(u);
+    return local ? pre + local + post : full;
+  });
+}
 
 for (const entry of publicEntries) {
   await cp(
@@ -32,6 +106,13 @@ for (const entry of publicEntries) {
     { recursive: true }
   );
 }
+
+// 把静态兜底 data.js 里的外部图标也下载到本地（KV 为空时的离线回退）
+try {
+  const dataJsPath = path.join(outputDirectory, 'data.js');
+  const dataJs = await readFile(dataJsPath, 'utf8');
+  await writeFile(dataJsPath, await localizeIconUrls(dataJs));
+} catch (_) {}
 
 const builtIndexPath = path.join(outputDirectory, 'index.html');
 const favPageSource = await readFile(path.join(projectRoot, 'shared', 'fav-page.js'), 'utf8');
@@ -82,6 +163,10 @@ function escapeHtmlAttribute(value) {
 }
 
 const snapshot = await fetchInlineSnapshot();
+if (snapshot) {
+  // 把内联快照里的外部图标下载到本地并重写引用
+  snapshot.content = await localizeIconUrls(snapshot.content);
+}
 if (snapshot) {
   const marker = '<!-- 尽早并行请求公开数据；在线响应同时注入站点配置和查看者身份。 -->';
   if (!builtIndex.includes(marker)) throw new Error('homepage data loader marker is missing');

@@ -1,27 +1,15 @@
 import { createToken, getSecret, jsonResponse } from '../_shared/auth.js';
+import { constantTimeEqual, readCredentialState, verifyAdminPassword } from '../_shared/account-security.js';
 
 const LOCKOUT_PREFIX = 'lockout:';
 const MAX_ATTEMPTS = 5;
 const WINDOW_SECONDS = 600;
-const encoder = new TextEncoder();
 
 function getClientIP(request) {
     const cf = request.headers.get('CF-Connecting-IP');
     if (cf) return cf.trim();
     const forwarded = request.headers.get('X-Forwarded-For');
     return forwarded ? forwarded.split(',')[0].trim() : 'unknown';
-}
-
-async function constantTimeEqual(left, right) {
-    const [a, b] = await Promise.all([
-        crypto.subtle.digest('SHA-256', encoder.encode(String(left || ''))),
-        crypto.subtle.digest('SHA-256', encoder.encode(String(right || '')))
-    ]);
-    const aa = new Uint8Array(a);
-    const bb = new Uint8Array(b);
-    let diff = 0;
-    for (let i = 0; i < aa.length; i++) diff |= aa[i] ^ bb[i];
-    return diff === 0;
 }
 
 async function readLockout(env, ip) {
@@ -76,9 +64,10 @@ export async function onRequestPost({ request, env }) {
     const secret = getSecret(env);
     if (!secret) return jsonResponse({ ok: false, error: 'AUTH_SECRET 未配置或长度不足 16 位' }, 500);
 
+    const credentialState = await readCredentialState(env);
     const [userOk, passOk] = await Promise.all([
         constantTimeEqual(username, env.ADMIN_USER),
-        constantTimeEqual(password, env.ADMIN_PASS)
+        verifyAdminPassword(password, env, credentialState)
     ]);
     if (!userOk || !passOk) {
         try { await recordFailure(env, ip); } catch {}
@@ -86,7 +75,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     try { await clearFailure(env, ip); } catch {}
-    const token = await createToken(env.ADMIN_USER, secret);
+    const token = await createToken(env.ADMIN_USER, secret, 7, credentialState.sessionVersion);
     return jsonResponse({ ok: true, username: env.ADMIN_USER, role: 'admin' }, 200, {
         'Set-Cookie': `auth=${token}; Path=/; Max-Age=${7 * 86400}; HttpOnly; Secure; SameSite=Strict`
     });

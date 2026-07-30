@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/prepare-deploy.mjs",
-    "deploy": "npm run build && npx wrangler@latest pages deploy dist --project-name smarttools --branch main --commit-dirty=true --skip-caching",
+    "verify:deploy": "node scripts/verify-deploy.mjs",
+    "deploy": "npm run build && npm run verify:deploy && npx wrangler@latest pages deploy dist --project-name smarttools --branch main --commit-dirty=true --skip-caching",
     "test:build": "node scripts/build-acceptance.mjs",
-    "test:api": "node scripts/acceptance.mjs",
+    "test:api": "node scripts/acceptance.mjs && node scripts/account-security-acceptance.mjs",
+    "test:security": "node scripts/account-security-acceptance.mjs",
     "test:browser": "node scripts/browser-acceptance.mjs",
     "test:online": "node scripts/online-acceptance.mjs",
     "test:performance": "node scripts/performance-acceptance.mjs",

@@ -1,0 +1,64 @@
+/* ================================================================
+   SmartTools 共享主题（设计令牌 + 基础原语）
+   - 主页 index.html 与后台 config.html 共用同一套视觉变量，
+     消除“后台像另一个产品”的割裂感。
+   - 后台 config.html 通过 <link> 引入；主页当前仍内联相同令牌作为兜底，
+     后续可统一改为仅引用本文件。
+   ================================================================ */
+
+:root {
+    /* —— 表面 / 背景 —— */
+    --bg:              #FAFAF9;
+    --bg-card:         #FFFFFF;
+    --bg-card-hov:     #F7F6F3;
+    --bg-sub:          #F7F6F3;
+    --bg-sub-hov:      #EFEEEB;
+    --bg-overlay:      rgba(55, 53, 47, 0.22);
+
+    /* —— 边框 —— */
+    --bd:              #DDD9D3;
+    --bd-hov:          #C2BEB6;
+
+    /* —— 文本 —— */
+    --tx1:             #37352F;
+    --tx2:             #787774;
+    --tx3:             #BCBAB6;
+
+    /* —— 强调色（主色） —— */
+    --ac:              #6E56CF;
+    --ac-bg:           #F0ECFA;
+    --ac-hov:          #5946B2;
+
+    /* —— 语义色（按钮 / 状态） —— */
+    --green:           #4CAF50;
+    --green-d:         #2e7d32;
+    --red:             #E74C3C;
+    --red-d:           #c62828;
+    --orange:          #FF9800;
+    --orange-d:        #e65100;
+    --blue:            #3B82F6;
+
+    /* —— 阴影（Notion 风格柔和高光） —— */
+    --sh-sm:  0 1px 3px rgba(55,53,47,.08),
+              0 2px 8px rgba(55,53,47,.07),
+              0 0 0 1px rgba(55,53,47,.05),
+              inset 0 1px 0 rgba(255,255,255,.95),
+              inset 0 -1px 0 rgba(55,53,47,.04);
+    --sh-md:  0 3px 8px rgba(55,53,47,.10),
+              0 6px 20px rgba(55,53,47,.10),
+              0 0 0 1px rgba(55,53,47,.05),
+              inset 0 1px 0 rgba(255,255,255,.95),
+              inset 0 -1px 0 rgba(55,53,47,.05);
+    --sh-lg:  0 8px 16px rgba(55,53,47,.12),
+              0 16px 40px rgba(55,53,47,.12),
+              0 0 0 1px rgba(55,53,47,.06);
+}
+
+/* 基础重置：与主页保持一致，避免后台自带 * 重置与令牌冲突 */
+* { box-sizing: border-box; }
+
+body {
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+                 "Microsoft YaHei", Helvetica, Arial, sans-serif;
+}

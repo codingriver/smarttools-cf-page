@@ -48,6 +48,7 @@ async function request(root, route, options = {}) {
 const credentials = readRemoteAdminCredentials();
 const anonymousCheck = await request(base, '/api/check');
 assert(anonymousCheck.response.status === 200 && anonymousCheck.body.loggedIn === false, 'anonymous production check failed');
+assert(typeof anonymousCheck.body.recoveryEnabled === 'boolean', 'production recovery status is missing');
 assert(!('migrationNeeded' in anonymousCheck.body) && !('inboxPolicy' in anonymousCheck.body), 'removed check fields remain');
 
 const siteConfig = await request(base, '/api/site-config');
@@ -100,6 +101,8 @@ for (const root of [base, pagesBase]) {
         assert(!config.body.includes(`id="${id}"`), `removed control remains online: ${id}`);
     }
     assert(!config.body.includes('siteConfigDefaultThemeInput'), `removed theme configuration remains: ${root}`);
+    assert(config.body.includes('id="btnAccountSecurity"'), `account security control is missing: ${root}`);
+    assert(config.body.includes('id="passwordRecoveryModal"'), `password recovery UI is missing: ${root}`);
     for (let theme = 1; theme <= 5; theme++) {
         for (const suffix of ['', '.html']) {
             const route = `/index${theme}${suffix}`;
@@ -143,6 +146,7 @@ try {
     await page.locator('#mainPage:not(.hidden)').waitFor({ timeout: 15000 });
     assert(await page.locator('#btnIoHub').count() === 1, 'production import/export hub missing');
     assert(await page.locator('#btnOpenTabsImportTop').count() === 1, 'production open-tabs importer missing');
+    assert(await page.locator('#btnAccountSecurity').count() === 1, 'production account security control missing');
     assert(await page.locator('#siteConfigDefaultThemeInput').count() === 0, 'production theme configuration remains');
 
     const publicContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
@@ -162,9 +166,21 @@ try {
     await publicPage.evaluate(() => window.__SmartToolsLoadNoteModal());
     assert(await publicPage.evaluate(() => !!window.NoteModal), 'production note modal failed to load on demand');
     assert(await publicPage.locator('.sub-card').count() === 0, 'production collapsed sub-cards rendered eagerly');
-    await publicPage.locator('.expand-zone').first().click();
-    await publicPage.locator('.sub-cards.expanded .sub-card').first().waitFor();
-    const mobileSubCardTypography = await publicPage.locator('.sub-cards.expanded .compact-card .link-url').first().evaluate(element => {
+    const expandableCards = publicPage.locator('.card-container:has(.expand-zone)');
+    let compactParentIndex = -1;
+    for (let index = 0; index < await expandableCards.count(); index++) {
+        const parent = expandableCards.nth(index);
+        await parent.locator('.expand-zone').click();
+        await parent.locator('.sub-cards.expanded .sub-card').first().waitFor();
+        if (await parent.locator('.sub-cards.expanded .compact-card .link-url').count()) {
+            compactParentIndex = index;
+            break;
+        }
+        await parent.locator('.expand-zone').click();
+    }
+    assert(compactParentIndex >= 0, 'production compact sub-card fixture is unavailable');
+    const compactParent = expandableCards.nth(compactParentIndex);
+    const mobileSubCardTypography = await compactParent.locator('.sub-cards.expanded .compact-card .link-url').first().evaluate(element => {
         const style = getComputedStyle(element);
         return { fontSize: style.fontSize, textOverflow: style.textOverflow, whiteSpace: style.whiteSpace };
     });
