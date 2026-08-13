@@ -869,6 +869,46 @@ function openAllSubCards(subcardId, event) {
     });
 }
 
+function getSubCardsReserveScope(cardContainer) {
+    if (!cardContainer || !cardContainer.closest) return null;
+    return cardContainer.closest('.hidden-cards, .links-grid');
+}
+
+function clearSubCardsReserve(cardContainer) {
+    var scope = getSubCardsReserveScope(cardContainer);
+    if (scope) scope.style.paddingBottom = '';
+}
+
+function reserveSubCardsSpace(cardContainer, subcards) {
+    var scope = getSubCardsReserveScope(cardContainer);
+    if (!scope || !subcards) return;
+
+    // .sub-cards 是绝对定位浮层，不参与 grid/hidden-cards 的自然高度。
+    // 当展开卡片位于最后一行时，需要给父容器补足底部空间，避免后续
+    // “展开/折叠卡片”按钮或下一个 section 压到子卡片面板上。
+    scope.style.paddingBottom = '';
+
+    var cardTop   = cardContainer.offsetTop || 0;
+    var subTop    = subcards.offsetTop || 0;
+    var subHeight = subcards.offsetHeight || 0;
+    var overflow  = Math.ceil(cardTop + subTop + subHeight - scope.clientHeight + 14);
+
+    scope.style.paddingBottom = overflow > 0 ? overflow + 'px' : '';
+}
+
+function closeSubCardsElement(subcards) {
+    if (!subcards) return;
+    var button        = subcards.parentElement && subcards.parentElement.querySelector('.expand-btn');
+    var cardContainer = button && button.closest('.card-container');
+
+    subcards.classList.remove('expanded');
+    if (button) button.classList.remove('expanded');
+    if (cardContainer) {
+        cardContainer.classList.remove('active');
+        clearSubCardsReserve(cardContainer);
+    }
+}
+
 function toggleSubCards(subcardId, button) {
     var subcards      = document.getElementById(subcardId);
     var overlay       = document.getElementById('overlay');
@@ -878,26 +918,26 @@ function toggleSubCards(subcardId, button) {
     if (currentExpanded && currentExpanded !== subcardId) {
         var otherSubcards = document.getElementById(currentExpanded);
         if (otherSubcards) {
-            var otherButton    = otherSubcards.parentElement.querySelector('.expand-btn');
-            var otherContainer = otherButton.closest('.card-container');
-            otherSubcards.classList.remove('expanded');
-            otherButton.classList.remove('expanded');
-            otherContainer.classList.remove('active');
+            closeSubCardsElement(otherSubcards);
         }
     }
 
     if (isExpanded) {
-        subcards.classList.remove('expanded');
-        button.classList.remove('expanded');
-        cardContainer.classList.remove('active');
-        overlay.classList.remove('active');
+        closeSubCardsElement(subcards);
+        if (overlay) overlay.classList.remove('active');
         currentExpanded = null;
     } else {
         ensureSubCardsRendered(subcardId);
         subcards.classList.add('expanded');
         button.classList.add('expanded');
         cardContainer.classList.add('active');
-        overlay.classList.add('active');
+        reserveSubCardsSpace(cardContainer, subcards);
+        setTimeout(function() {
+            if (subcards.classList.contains('expanded')) {
+                reserveSubCardsSpace(cardContainer, subcards);
+            }
+        }, 240);
+        if (overlay) overlay.classList.add('active');
         currentExpanded = subcardId;
     }
 }
@@ -909,6 +949,13 @@ function toggleSection(prefix) {
     var isExpanded  = section.classList.contains('expanded');
 
     if (isExpanded) {
+        if (currentExpanded && section && section.contains(document.getElementById(currentExpanded))) {
+            var currentSubcards = document.getElementById(currentExpanded);
+            closeSubCardsElement(currentSubcards);
+            var overlay = document.getElementById('overlay');
+            if (overlay) overlay.classList.remove('active');
+            currentExpanded = null;
+        }
         section.classList.remove('hover-ready');
         section.classList.add('collapsing');
         collapseBtn.classList.add('moving');
@@ -1052,11 +1099,7 @@ window.__favPageAPI = {
         if (!currentExpanded) return;
         var subs = document.getElementById(currentExpanded);
         if (subs) {
-            var btn = subs.parentElement && subs.parentElement.querySelector('.expand-btn');
-            var ctn = btn && btn.closest('.card-container');
-            subs.classList.remove('expanded');
-            if (btn) btn.classList.remove('expanded');
-            if (ctn) ctn.classList.remove('active');
+            closeSubCardsElement(subs);
         }
         var ol = document.getElementById('overlay');
         if (ol) ol.classList.remove('active');
@@ -1213,11 +1256,7 @@ async function bootFavPage() {
             if (currentExpanded) {
                 var subcards = document.getElementById(currentExpanded);
                 if (subcards) {
-                    var button        = subcards.parentElement.querySelector('.expand-btn');
-                    var cardContainer = button.closest('.card-container');
-                    subcards.classList.remove('expanded');
-                    button.classList.remove('expanded');
-                    cardContainer.classList.remove('active');
+                    closeSubCardsElement(subcards);
                 }
                 currentExpanded = null;
             }

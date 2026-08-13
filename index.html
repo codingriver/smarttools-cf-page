@@ -1419,12 +1419,28 @@ body::before {
 .hidden-cards.expanded::before {
     content: '';
     position: absolute;
+    z-index: 0;
     left: 7px;
     right: 7px;
     top: 50%;
     height: 1px;
     background: linear-gradient(90deg, rgba(185,216,206,0), rgba(185,216,206,.72) 16%, rgba(185,216,206,.72) 84%, rgba(185,216,206,0));
     pointer-events: none;
+}
+
+.links-grid:not(.contact-row) > .link-card,
+.links-grid:not(.contact-row) > .card-container,
+.hidden-cards.expanded > .link-card,
+.hidden-cards.expanded > .card-container {
+    position: relative;
+    z-index: 1;
+}
+
+.links-grid:not(.contact-row) > .link-card:hover,
+.hidden-cards.expanded > .link-card:hover,
+.links-grid:not(.contact-row) > .card-container.active,
+.hidden-cards.expanded > .card-container.active {
+    z-index: 60;
 }
 
 .link-card {
