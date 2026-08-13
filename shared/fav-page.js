@@ -876,7 +876,10 @@ function getSubCardsReserveScope(cardContainer) {
 
 function clearSubCardsReserve(cardContainer) {
     var scope = getSubCardsReserveScope(cardContainer);
-    if (scope) scope.style.paddingBottom = '';
+    if (scope) {
+        scope.style.paddingBottom = '';
+        scope.classList.remove('has-expanded-subcards');
+    }
 }
 
 function reserveSubCardsSpace(cardContainer, subcards) {
@@ -884,9 +887,12 @@ function reserveSubCardsSpace(cardContainer, subcards) {
     if (!scope || !subcards) return;
 
     // .sub-cards 是绝对定位浮层，不参与 grid/hidden-cards 的自然高度。
+    // 同时 hidden-cards 上的 transform 会创建 stacking context，所以展开时
+    // 必须把父容器一起提层，否则内部子卡片无法压过后续的“折叠卡片”按钮。
     // 当展开卡片位于最后一行时，需要给父容器补足底部空间，避免后续
     // “展开/折叠卡片”按钮或下一个 section 压到子卡片面板上。
     scope.style.paddingBottom = '';
+    scope.classList.add('has-expanded-subcards');
 
     var cardTop   = cardContainer.offsetTop || 0;
     var subTop    = subcards.offsetTop || 0;

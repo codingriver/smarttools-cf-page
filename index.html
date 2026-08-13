@@ -379,6 +379,7 @@
             box-shadow: var(--sh-sm);
             margin: 12px auto; width: 30%; min-width: 130px; height: 30px;
             opacity: 1; transform: translateY(0); font-family: inherit;
+            position: relative; z-index: 1;
         }
 
         .expand-section-btn:hover {
@@ -1441,6 +1442,11 @@ body::before {
 .links-grid:not(.contact-row) > .card-container.active,
 .hidden-cards.expanded > .card-container.active {
     z-index: 60;
+}
+
+.links-grid:not(.contact-row).has-expanded-subcards,
+.hidden-cards.expanded.has-expanded-subcards {
+    z-index: 80;
 }
 
 .link-card {
