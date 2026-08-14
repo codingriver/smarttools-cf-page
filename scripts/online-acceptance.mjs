@@ -137,7 +137,10 @@ try {
     const context = await browser.newContext();
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
-    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+    page.on('console', message => {
+        if (message.type() === 'error') errors.push(`${message.text()} ${message.location().url || ''}`.trim());
+    });
+    page.on('requestfailed', request => errors.push(`request failed: ${request.url()} ${request.failure()?.errorText || ''}`));
     await page.goto(base + '/config.html', { waitUntil: 'networkidle' });
     await page.locator('#authPage:not(.hidden)').waitFor();
     await page.locator('#authUser').fill(credentials.username);
@@ -154,7 +157,10 @@ try {
     const publicRequests = [];
     publicPage.on('request', request => publicRequests.push(new URL(request.url()).pathname));
     publicPage.on('pageerror', error => errors.push(error.message));
-    publicPage.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+    publicPage.on('console', message => {
+        if (message.type() === 'error') errors.push(`${message.text()} ${message.location().url || ''}`.trim());
+    });
+    publicPage.on('requestfailed', request => errors.push(`request failed: ${request.url()} ${request.failure()?.errorText || ''}`));
     await publicPage.goto(base + '/', { waitUntil: 'networkidle' });
     await publicPage.evaluate(() => window.__SmartToolsDataReady);
     assert(await publicPage.locator('#styleSwitcher').count() === 0, 'production theme switcher remains');
@@ -166,7 +172,13 @@ try {
     await publicPage.evaluate(() => window.__SmartToolsLoadNoteModal());
     assert(await publicPage.evaluate(() => !!window.NoteModal), 'production note modal failed to load on demand');
     assert(await publicPage.locator('.sub-card').count() === 0, 'production collapsed sub-cards rendered eagerly');
-    const expandableCards = publicPage.locator('.card-container:has(.expand-zone)');
+    const expandSectionButtons = publicPage.locator('.expand-section-btn').filter({ hasText: '展开卡片' });
+    for (let index = 0; index < await expandSectionButtons.count(); index++) {
+        const button = expandSectionButtons.nth(index);
+        if (await button.isVisible()) await button.click();
+    }
+    await publicPage.waitForTimeout(900);
+    const expandableCards = publicPage.locator('.card-container:has(.expand-zone):visible');
     let compactParentIndex = -1;
     for (let index = 0; index < await expandableCards.count(); index++) {
         const parent = expandableCards.nth(index);
@@ -186,6 +198,19 @@ try {
     });
     assert(mobileSubCardTypography.fontSize === '12px', `production mobile sub-card font size is inconsistent: ${mobileSubCardTypography.fontSize}`);
     assert(mobileSubCardTypography.textOverflow === 'ellipsis' && mobileSubCardTypography.whiteSpace === 'nowrap', 'production mobile long text truncation is missing');
+    const productionLayerPresentation = await compactParent.locator('.sub-cards.expanded').evaluate(element => {
+        const scope = element.parentElement && element.parentElement.closest('.hidden-cards, .links-grid');
+        const panelRect = element.getBoundingClientRect();
+        const scopeRect = scope && scope.getBoundingClientRect();
+        return {
+            reserved: !!(scope && scope.classList.contains('has-expanded-subcards')),
+            paddingBottom: scope ? parseFloat(getComputedStyle(scope).paddingBottom) || 0 : 0,
+            panelBottom: Math.round(panelRect.bottom),
+            scopeBottom: scopeRect ? Math.round(scopeRect.bottom) : 0
+        };
+    });
+    assert(productionLayerPresentation.reserved, `production expanded sub-card stacking scope was not raised: ${JSON.stringify(productionLayerPresentation)}`);
+    assert(productionLayerPresentation.panelBottom <= productionLayerPresentation.scopeBottom + 1, `production expanded sub-card panel escapes its reserved layer: ${JSON.stringify(productionLayerPresentation)}`);
     await publicContext.close();
     assert(errors.length === 0, `production browser errors: ${errors.join('; ')}`);
 } finally {

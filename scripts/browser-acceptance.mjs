@@ -171,6 +171,20 @@ try {
     assert(directoryPresentation.rowBorderRadius === '0px', 'directory rows still use card borders');
     assert(directoryPresentation.toolbarPosition === 'sticky', 'directory toolbar is not sticky');
     assert(directoryPresentation.iconWidth === 28, `directory icon container width is invalid: ${directoryPresentation.iconWidth}`);
+    const expandedLayerPresentation = await publicHome.locator('.sub-cards.expanded').evaluate(element => {
+        const scope = element.parentElement && element.parentElement.closest('.hidden-cards, .links-grid');
+        const panelRect = element.getBoundingClientRect();
+        const scopeRect = scope && scope.getBoundingClientRect();
+        return {
+            reserved: !!(scope && scope.classList.contains('has-expanded-subcards')),
+            paddingBottom: scope ? parseFloat(getComputedStyle(scope).paddingBottom) || 0 : 0,
+            panelBottom: Math.round(panelRect.bottom),
+            scopeBottom: scopeRect ? Math.round(scopeRect.bottom) : 0
+        };
+    });
+    assert(expandedLayerPresentation.reserved, `expanded sub-card stacking scope was not raised: ${JSON.stringify(expandedLayerPresentation)}`);
+    assert(expandedLayerPresentation.paddingBottom > 0, `expanded sub-card space was not reserved: ${JSON.stringify(expandedLayerPresentation)}`);
+    assert(expandedLayerPresentation.panelBottom <= expandedLayerPresentation.scopeBottom + 1, `expanded sub-card panel escapes its reserved layer: ${JSON.stringify(expandedLayerPresentation)}`);
     const compactNotePresentation = await publicHome.locator('.sub-cards.expanded .compact-card').first().evaluate(row => {
         const content = row.querySelector('.link-content');
         const note = row.querySelector('.link-note');

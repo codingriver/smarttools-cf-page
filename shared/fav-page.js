@@ -509,7 +509,7 @@ function renderSubCardIcon(item) {
         if (/^https?:/i.test(safeUrl)) {
             try {
                 var faviconUrl = new URL('/favicon.ico', safeUrl).href;
-                return renderImageIcon(faviconUrl, item, '', 'link-icon-favicon');
+                return renderImageIcon(__safeImgUrl(faviconUrl), item, '', 'link-icon-favicon');
             } catch (e) {}
         }
         return '<span class="link-icon icon-load-failed" aria-hidden="true"><span class="link-icon-fallback">' + __txt(getIconFallbackText(item)) + '</span></span>';

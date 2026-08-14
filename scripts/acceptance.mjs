@@ -178,6 +178,7 @@ const pageLogic = await request('/shared/fav-page.js');
 assert(!pageLogic.body.includes("fetch('/api/site-config')"), 'homepage still makes a separate site config request');
 assert(pageLogic.body.includes('loading="lazy"') && pageLogic.body.includes('ensureSubCardsRendered'), 'lazy media or sub-card rendering is missing');
 assert(pageLogic.body.includes('data-subcard-layout') && pageLogic.body.includes('renderSubCardIcon'), 'configurable directory layout or icon fallback is missing');
+assert(pageLogic.body.includes("renderImageIcon(__safeImgUrl(faviconUrl)"), 'automatic sub-card favicons bypass the same-origin icon proxy');
 
 console.log(JSON.stringify({
     ok: true,

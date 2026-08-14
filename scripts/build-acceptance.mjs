@@ -77,6 +77,8 @@ const [index, config, headers, routes, dataFunction, extensionPopupHtml, extensi
 assert(index.includes('data-inline-data="1"'), 'inline snapshot marker missing');
 assert(index.includes('data-etag="W/&quot;build-acceptance&quot;"'), 'inline snapshot ETag missing');
 assert(index.includes('Inline <\\/script> Snapshot'), 'inline snapshot was not script-safe');
+assert(index.includes('data-build-output="fav-page-inline"'), 'homepage runtime was not inlined');
+assert(!index.includes('src="shared/fav-page.js"'), 'homepage still references the cacheable external runtime');
 assert(index.includes('__SmartToolsDataRefresh') && index.includes('__favPageReloadData'), 'background data correction missing');
 assert(index.includes('smarttools:public-data-cache:v1') && index.includes('PUBLIC_DATA_CACHE_TTL_MS'), 'homepage public data local cache missing');
 
