@@ -34,7 +34,8 @@ try {
       assert(trigger.x + trigger.width > width - 30, 'account entry is at the right edge');
       await page.locator('#accountTrigger').focus();
       await page.keyboard.press('Enter');
-      assert(await page.locator('#siteUrl').isVisible());
+      assert.equal(await page.locator('#siteUrl').isVisible(), false, 'site setup is hidden even when account is open');
+      assert.equal(await page.locator('#siteSettings').evaluate(el => el.open), false);
       assert.equal(await page.locator('#loginForm').isVisible(), !loggedIn);
       assert.equal(await page.locator('#logout').isVisible(), loggedIn);
       assert.equal(await page.locator('#clearCache').isVisible(), false);
@@ -56,8 +57,12 @@ try {
       if (!loggedIn) await page.locator('#password').fill('unsent-fixture-only');
       await page.locator('header').click({ position: { x: 5, y: 5 } });
       assert.equal(await page.locator('#siteForm').isVisible(), false, 'outside blank click closes popover');
-      await page.waitForFunction(() => !document.querySelector('.cache-menu').open && document.querySelector('#password').value === '');
+      await page.waitForFunction(() => !document.querySelector('.cache-menu').open && !document.querySelector('#siteSettings').open && document.querySelector('#password').value === '');
       await page.locator('#accountTrigger').click();
+      assert.equal(await page.locator('#siteForm').isVisible(), false, 'reopening resets advanced settings');
+      await page.locator('#siteSettings > summary').focus(); await page.keyboard.press('Enter');
+      assert(await page.locator('#siteForm button').isVisible());
+      await page.locator('#siteUrl').fill('https://example.invalid/config.html');
       await page.locator('#siteUrl').click();
       assert(await page.locator('#siteUrl').evaluate(input => document.activeElement === input), 'inside form remains interactive');
       await page.keyboard.press('Escape');
@@ -74,11 +79,12 @@ try {
   await page.setViewportSize({ width: 390, height: 500 });
   await page.evaluate(() => window.renderFixture(false));
   await page.locator('#accountTrigger').click();
+  await page.locator('#siteSettings > summary').click();
   await page.locator('.cache-menu summary').click();
   await page.locator('#clearAllCache').click();
   const panel = await page.locator('.account-panel').boundingBox();
   assert(panel.y + panel.height <= 500, 'short-screen popover stays on screen and scrolls to actions');
-  console.log('Extension account popover passed: 5 widths, login/avatar states, site forms, nested cache controls, outside click, Escape, password clearing and short-screen scrolling.');
+  console.log('Extension account popover passed: 5 widths, login/avatar states, collapsed advanced site settings, keyboard-accessible site forms, nested cache controls, outside click, Escape, password clearing and short-screen scrolling.');
 } finally {
   await browser.close();
 }

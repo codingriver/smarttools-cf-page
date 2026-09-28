@@ -1,3 +1,4 @@
+import { authorizeSite } from '../extensions/open-tabs-importer/site.js';
 import { client, applyClientError, sessionLabel } from '../extensions/open-tabs-importer/client.js';
 import assert from 'node:assert/strict';
 import { moveItem, canMove, reorderBefore, validateCard, saveDraft } from '../extensions/open-tabs-importer/draft-actions.js';
@@ -62,6 +63,38 @@ applyClientError(conflict, { status: 409 }); assert.equal(conflict.loggedIn, tru
 for (const sendMessage of [async () => undefined, async () => { throw new Error('Synthetic disconnect'); }]) {
   globalThis.chrome = { runtime: { sendMessage } };
   await assert.rejects(client('save', 'https://example.invalid/config.html'), error => error.status === 0 && error.code === 'BACKGROUND_UNAVAILABLE' && error.outcomeUnknown === true);
+}
+// Saving a site must not mutate settings or imports until permission is granted.
+for (const outcome of ['granted', 'denied', 'error']) {
+  const oldUrl = 'https://old.example.invalid/config.html';
+  const newUrl = 'https://new.example.invalid/config.html';
+  let savedUrl = oldUrl, pendingImport = true, registrationUpdates = 0, settle;
+  const events = [];
+  globalThis.chrome = {
+    permissions: { request: ({ origins }) => {
+      events.push('permission');
+      assert.deepEqual(origins, ['https://new.example.invalid/*']);
+      return new Promise((resolve, reject) => { settle = () => outcome === 'error' ? reject(new Error('Synthetic permission error')) : resolve(outcome === 'granted'); });
+    } },
+    storage: {
+      sync: { get: async () => { events.push('read'); return { configUrl: savedUrl }; }, set: async data => { events.push('save'); savedUrl = data.configUrl; } },
+      local: { remove: async key => { assert.equal(key, 'pendingOpenTabsImport'); pendingImport = false; } }
+    },
+    runtime: { sendMessage: async message => { assert.equal(message.action, 'refresh-import-registration'); registrationUpdates++; } }
+  };
+  const saving = authorizeSite(newUrl);
+  assert.deepEqual(events, ['permission'], 'permission requested immediately; storage untouched while awaiting consent');
+  assert.equal(savedUrl, oldUrl); assert.equal(pendingImport, true);
+  settle();
+  if (outcome === 'granted') {
+    assert.equal(await saving, newUrl); assert.equal(savedUrl, newUrl);
+    assert.equal(pendingImport, false); assert.equal(registrationUpdates, 1);
+    assert.deepEqual(events, ['permission', 'read', 'save']);
+  } else {
+    await assert.rejects(saving, outcome === 'error' ? /Synthetic permission error/ : /地址未保存/);
+    assert.equal(savedUrl, oldUrl); assert.equal(pendingImport, true); assert.equal(registrationUpdates, 0);
+    assert.deepEqual(events, ['permission']);
+  }
 }
 delete globalThis.chrome;
 console.log(JSON.stringify({ ok: true, identityMoves: true, privateCancel: true, unknownFields: true, noNestedFolders: true, sharedCrud: true, saveGuards: true }));

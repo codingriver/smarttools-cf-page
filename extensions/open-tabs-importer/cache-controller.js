@@ -16,7 +16,7 @@ export function trustedClient(sender, action = 'cache.get') {
 async function configured() { return normalizeConfigUrl((await chrome.storage.sync.get({ configUrl: DEFAULT_CONFIG_URL })).configUrl); }
 async function guard(configUrl, revision, network = false) {
   if (epoch !== revision || origin(await configured()) !== origin(configUrl)) throw failure('站点或缓存状态已变化，请重新操作', 409);
-  if (network && !await chrome.permissions.contains({ origins: [sitePattern(configUrl)] })) throw failure('站点权限已撤销；本机缓存仍可查看，请重新授权后联网', 403, { code: 'SITE_PERMISSION_REQUIRED' });
+  if (network && !await chrome.permissions.contains({ origins: [sitePattern(configUrl)] })) throw failure('站点尚未授权或权限已撤销；请在右上角账户的“高级设置”中点击“保存地址”并允许访问站点，本机缓存仍可查看', 403, { code: 'SITE_PERMISSION_REQUIRED' });
 }
 function notify(type, site, extra = {}) {
   chrome.runtime.sendMessage({ channel: 'smarttools-cache-event', type, site, ...extra }).catch(() => {});

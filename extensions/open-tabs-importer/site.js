@@ -11,7 +11,7 @@ export function sitePattern(configUrl) { return new URL(normalizeConfigUrl(confi
 export async function authorizeSite(raw) {
   const configUrl = normalizeConfigUrl(raw);
   // Called directly from a click handler, before storage/network awaits.
-  if (!await chrome.permissions.request({ origins: [sitePattern(configUrl)] })) throw new Error('未授权访问该站点');
+  if (!await chrome.permissions.request({ origins: [sitePattern(configUrl)] })) throw new Error('未获得站点访问权限，地址未保存；原站点设置保持不变');
   const previous = await chrome.storage.sync.get('configUrl');
   if (previous.configUrl !== configUrl) await chrome.storage.local.remove('pendingOpenTabsImport');
   await chrome.storage.sync.set({ configUrl });

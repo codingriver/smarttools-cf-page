@@ -43,7 +43,7 @@ try {
   const id = new URL(worker.url()).host; const homeUrl = `chrome-extension://${id}/home.html`;
   const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error' && /Content Security Policy|unsafe-eval/.test(message.text())) errors.push(message.text()); });
-  await page.goto(homeUrl); await page.locator('#accountTrigger').click(); await page.locator('#siteUrl').fill(base + '/config.html'); await page.locator('#siteForm button').click();
+  await page.goto(homeUrl); await page.locator('#accountTrigger').click(); assert(await page.locator('#siteUrl').isHidden()); await page.locator('#siteSettings > summary').click(); await page.locator('#siteUrl').fill(base + '/config.html'); await page.locator('#siteForm button').click();
   await page.locator('.group').filter({ hasText: 'Public fixture' }).waitFor().catch(async error => { console.error('Initial load status:', await page.locator('#status').innerText(), errors); throw error; });
   assert.equal(await page.locator('.group').filter({ hasText: 'Private fixture' }).count(), 0);
   await page.locator('#username').fill(username); await page.locator('#password').fill(password); await page.locator('#loginForm button').click();

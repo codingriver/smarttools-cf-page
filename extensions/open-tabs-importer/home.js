@@ -230,7 +230,7 @@ $('siteForm').addEventListener('submit', event => {
 $('loginForm').addEventListener('submit', event => {
   event.preventDefault(); if (state.busy) return;
   run(async () => {
-    if (!state.configUrl) throw new Error('请先授权并连接站点');
+    if (!state.configUrl) throw new Error('请在右上角账户的“高级设置”中点击“保存地址”并允许访问站点');
     const password = $('password').value; $('password').value = '';
     await busy(async () => {
       const result = await remote('login', { username: $('username').value, password });
@@ -269,7 +269,7 @@ document.addEventListener('visibilitychange', () => {
 });
 chrome.permissions.onRemoved.addListener(() => run(async () => {
   if (state.configUrl && !await chrome.permissions.contains({ origins: [sitePattern(state.configUrl)] })) {
-    state.connectionIssue = '站点权限已撤销，请重新授权'; render(); status('站点权限已撤销；本机缓存保留，只读可查看。', true);
+    state.connectionIssue = '站点权限已撤销，请在账户的“高级设置”中重新授权'; render(); status('站点权限已撤销；本机缓存保留，只读可查看。', true);
   }
 }));
 chrome.storage.onChanged.addListener((changes, area) => {

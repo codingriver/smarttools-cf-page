@@ -232,7 +232,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     run(() => switchSite(changes.configUrl.newValue || DEFAULT_CONFIG_URL));
   }
 });
-chrome.permissions.onRemoved.addListener(() => run(async () => { if (state.configUrl && !await chrome.permissions.contains({ origins: [sitePattern(state.configUrl)] })) { state.connectionIssue = '站点权限已撤销，请重新授权'; drag.cancel(); render(); status('站点权限已撤销 · 本机缓存和已有草稿保留，当前只读', true); } }));
+chrome.permissions.onRemoved.addListener(() => run(async () => { if (state.configUrl && !await chrome.permissions.contains({ origins: [sitePattern(state.configUrl)] })) { state.connectionIssue = '站点权限已撤销，请在账户的“高级设置”中重新授权'; drag.cancel(); render(); status('站点权限已撤销 · 本机缓存和已有草稿保留，当前只读', true); } }));
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.configUrl) run(() => sync()); });
 window.addEventListener('offline', () => { state.connectionIssue = '离线，连接恢复后请检查云端'; render(); status('离线 · 本机缓存和已有草稿保留，当前只读', true); });
 window.addEventListener('beforeunload', event => { if (hasDraft()) { event.preventDefault(); event.returnValue = ''; } });
