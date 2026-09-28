@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SmartTools · 书签管理</title><link rel="stylesheet" href="home.css"><link rel="stylesheet" href="account.css"></head>
+<body>
+<div class="app-shell">
+  <aside id="sidebar" class="sidebar" aria-label="书签导航">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">S<span>·</span></span><div><strong>SmartTools</strong><span class="brand-caption">书签管理</span></div><button id="closeSidebar" class="icon-button mobile-only" aria-label="关闭导航" data-icon="close"></button></div>
+    <div class="sidebar-label">资料库</div>
+    <nav id="libraryNav" class="library-nav" aria-label="书签筛选"></nav>
+    <div class="aside-title"><span class="sidebar-label">我的分组</span><button id="addGroup" class="icon-button" aria-label="新建分组" title="新建分组" disabled data-icon="plus"></button></div>
+    <nav id="groups" aria-label="分组"></nav>
+    <div class="sidebar-bottom"><div class="site-indicator"><span class="site-dot"></span><div><span id="siteName">尚未连接站点</span><small id="connectionHint">在右上角登录你的站点</small></div></div><a id="backend" target="_blank" rel="noreferrer"><span data-icon="settings"></span>完整后台<span data-icon="external"></span></a><button id="openStart" type="button"><span data-icon="globe"></span>打开浏览主页</button><a id="website" target="_blank" rel="noreferrer"><span data-icon="globe"></span>打开网站首页<span data-icon="external"></span></a></div>
+  </aside>
+  <button id="sidebarBackdrop" class="sidebar-backdrop" aria-label="关闭导航" hidden></button>
+  <div class="main-shell">
+    <header class="topbar">
+      <button id="openSidebar" class="icon-button mobile-only" aria-label="打开导航" aria-expanded="false" aria-controls="sidebar" data-icon="menu"></button>
+      <div class="search-box"><span data-icon="search"></span><input id="search" type="search" placeholder="搜索整个资料库…" aria-label="搜索书签"><kbd aria-hidden="true">/</kbd></div>
+      <div class="header-actions"><button id="addBookmark" class="primary" disabled><span data-icon="plus"></span>新建书签</button><span id="syncState" class="sync-state">只读浏览</span><button id="refresh" class="icon-button" title="刷新云端数据" aria-label="刷新" data-icon="refresh"></button>
+    <div id="accountHost"></div>
+      </div>
+    </header>
+    <main id="mainContent">
+      <div class="breadcrumb"><span data-icon="library"></span><span>资料库</span><span class="breadcrumb-separator">/</span><span id="breadcrumbCurrent">全部书签</span></div>
+      <div class="page-heading"><div id="groupHeader"></div><div class="heading-actions"><div id="groupActions"></div></div></div>
+      <div class="view-toolbar"><div id="resultInfo" class="result-info">正在读取书签…</div><div class="view-options"><span class="sort-hint">按分组顺序</span><div class="view-switch" role="group" aria-label="显示方式"><button id="gridView" class="icon-button active" aria-label="卡片视图" aria-pressed="true" data-icon="grid"></button><button id="listView" class="icon-button" aria-label="列表视图" aria-pressed="false" data-icon="list"></button></div></div></div>
+      <p id="status" role="status" aria-live="polite">登录站点，开始整理你的资料库。已有本机缓存时可直接浏览。</p>
+      <div id="cards" class="cards"></div>
+      <footer><span data-icon="shield"></span>Private 是访问控制，不是加密。本机缓存可在账户菜单中单独清除。</footer>
+    </main>
+    <div id="draftBar" class="draft-bar" hidden><div><span class="draft-dot"></span><strong id="draft">有未保存的更改</strong><small>草稿仅保留在当前页面</small></div><button id="discard" type="button">放弃修改</button><button id="save" class="primary" disabled><span data-icon="cloud"></span>保存到云端</button></div>
+  </div>
+</div>
+<dialog id="editor"><form id="editForm"><div class="editor-heading"><div><span class="eyebrow">整理资料库</span><h2 id="editTitle"></h2><p><span id="editorContext">先应用到当前页面草稿，再保存到云端。</span></p></div><button id="cancelEdit" class="icon-button" type="button" aria-label="关闭编辑" data-icon="close"></button></div><div id="fields"></div><div class="dialog-actions"><span>不会立即修改云端数据</span><button class="primary" type="submit">应用到草稿</button></div></form></dialog>
+<script type="module" src="home.js"></script>
+</body></html>

@@ -55,6 +55,9 @@ const setCookie = login.response.headers.get('set-cookie') || '';
 const cookie = setCookie.split(';')[0];
 assert(cookie.startsWith('auth='), 'auth cookie missing');
 
+// Seed before asserting merged site configuration (also works with fresh local KV).
+await json('/api/site-config', 'POST', { title: 'SmartTools Acceptance', subCardLayout: 'directory' }, cookie);
+
 const save = await json('/api/save', 'POST', { content: testData }, cookie);
 assert(save.response.status === 200 && save.body.ok, 'fixture save failed');
 
@@ -63,6 +66,14 @@ assert(adminData.response.status === 200 && adminData.body.privateFiltered === f
 assert(adminData.body.content.includes('Private Card'), 'admin cannot see Private content');
 assert(adminData.body.content.includes('Public Card'), 'admin cannot see public content');
 assert(!adminData.body.content.includes('legacy_secret') && !adminData.body.content.includes('discard-me'), 'legacy encrypted section was retained');
+
+const structuredAdmin = await json('/api/data?format=structured', 'GET', undefined, cookie);
+assert(structuredAdmin.body.sections.length === 2 && structuredAdmin.body.hasKV, 'structured admin data failed');
+assert((structuredAdmin.response.headers.get('cache-control') || '').includes('private'), 'structured admin response is not private');
+const structuredPublic = await json('/api/data?format=structured');
+assert(structuredPublic.body.sections.length === 1 && structuredPublic.body.privateFiltered, 'structured Private filtering failed');
+const conflict = await json('/api/save', 'POST', { content: testData, baseEtag: 'stale-fixture' }, cookie);
+assert(conflict.response.status === 409 && conflict.body.code === 'SAVE_CONFLICT', 'stale save was not rejected');
 
 const publicData = await json('/api/data?format=json');
 assert(publicData.response.status === 200 && publicData.body.privateFiltered === true, 'public data flags invalid');
@@ -183,7 +194,8 @@ assert(pageLogic.body.includes("renderImageIcon(__safeImgUrl(faviconUrl)"), 'aut
 console.log(JSON.stringify({
     ok: true,
     base,
-    checks: 58,
+    structuredJson: true,
+    staleSaveRejected: true,
     privateIsolation: true,
     legacyEncryptedDiscarded: true,
     singleTheme: true,

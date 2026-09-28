@@ -2418,21 +2418,30 @@ function updateStatus() {
 /* ================================================================
    Online data ops
 ================================================================ */
+let onlineBaseEtag = null;
+let onlineBaseSource = null;
+let onlineActualSource = null;
 async function loadData_online() {
+    onlineBaseEtag = null;
     const r = await api('/api/data?format=json', { method: 'GET' });
-    if (r.ok && r.data && r.data.ok && r.data.content) {
+    if (r.ok && r.data && r.data.ok && r.data.content && !r.data.privateFiltered) {
         await parseAndLoad(r.data.content);
+        onlineBaseEtag = r.data.dataEtag;
+        onlineBaseSource = r.data.configured;
+        onlineActualSource = r.data.source;
         $('dataStatus').textContent = t('stServerLoaded'); $('dataStatus').className = 'st-ok'; return true;
     }
     $('dataStatus').textContent = t('stServerLoadFail'); $('dataStatus').className = 'st-warn'; return false;
 }
 async function saveDataJs_online() {
 
+    if (!onlineBaseEtag) { toast('请先成功加载云端数据后再保存'); return; }
+    if (onlineActualSource !== 'kv' && !confirm('将当前静态数据完整初始化到 KV，并切换为 KV 数据源？')) return;
     mergeCommentOverrides();
     let requestBody = null;
     let content = null;
     try {
-        requestBody = buildSectionDeltaPayload();
+        requestBody = onlineActualSource === 'kv' ? buildSectionDeltaPayload() : null;
         if (!requestBody) {
             content = await generateDataJs();
             requestBody = { content: content };
@@ -2440,22 +2449,18 @@ async function saveDataJs_online() {
     }
     catch (e) { toast(t('toastSaveFail') + ': ' + e.message); return; }
 
+    requestBody.baseEtag = onlineBaseEtag;
+    requestBody.baseSource = onlineBaseSource;
     $('btnSave').disabled = true;
-    let r = await api('/api/save', { method: 'POST', body: JSON.stringify(requestBody) });
-    if (!r.ok && requestBody && requestBody.mode === 'sections') {
-        try {
-            content = await generateDataJs();
-            requestBody = { content: content };
-            r = await api('/api/save', { method: 'POST', body: JSON.stringify(requestBody) });
-        } catch (e) {
-            $('btnSave').disabled = false;
-            toast(t('toastSaveFail') + ': ' + e.message);
-            return;
-        }
-    }
-    $('btnSave').disabled = false;
+    let r;
+    try { r = await api('/api/save', { method: 'POST', body: JSON.stringify(requestBody) }); }
+    catch (error) { toast(t('toastSaveFail') + ': ' + error.message); return; }
+    finally { $('btnSave').disabled = false; }
     if (r.status === 401) { toast(t('toastSessExpired')); await logout_online(); return; }
     if (r.ok && r.data && r.data.ok) {
+        onlineBaseEtag = r.data.dataEtag;
+        onlineBaseSource = 'kv';
+        onlineActualSource = 'kv';
         let msg;
         if (r.data.unchanged) msg = t('toastSavedNoChange');
         else if (r.data.backup) msg = t('toastSavedWithBackup', { name: r.data.backup });

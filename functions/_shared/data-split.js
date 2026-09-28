@@ -1,3 +1,4 @@
+import { parseDataLiteral } from './data-literal.js';
 const SPLIT_VERSION = 'v1';
 
 export function nsSplitKeys(ns) {
@@ -95,9 +96,30 @@ function splitTopLevelItems(src) {
     return items;
 }
 
+// Locate the declaration in code, never in a comment or quoted string.
+function sectionsDeclaration(text) {
+    let quote = null;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (quote) {
+            if (ch === '\\') { i++; continue; }
+            if (ch === quote) quote = null;
+            continue;
+        }
+        if (text.startsWith('//', i)) { const end = text.indexOf('\n', i); if (end < 0) return null; i = end; continue; }
+        if (text.startsWith('/*', i)) { const end = text.indexOf('*/', i + 2); if (end < 0) return null; i = end + 1; continue; }
+        if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+        if (ch === 'v' && (i === 0 || !/[\w$.]/.test(text[i - 1]))) {
+            const match = /^var\s+sections\s*=\s*\[/.exec(text.slice(i));
+            if (match) { match.index = i; return match; }
+        }
+    }
+    return null;
+}
+
 export function extractSectionsFromDataJs(content) {
     const text = String(content || '');
-    const m = /var\s+sections\s*=\s*\[/.exec(text);
+    const m = sectionsDeclaration(text);
     if (!m) return null;
     const varStart = m.index;
     const arrayStart = m.index + m[0].lastIndexOf('[');
@@ -110,7 +132,7 @@ export function extractSectionsFromDataJs(content) {
     const after = text.slice(stmtEnd).replace(/^\s+/, '');
     const body = text.slice(arrayStart + 1, arrayEnd);
     const items = splitTopLevelItems(body);
-    return { before, after, items };
+    return { before, after, items, body };
 }
 
 function extractStringProp(src, prop) {
@@ -126,10 +148,16 @@ function extractBooleanProp(src, prop, fallback = false) {
 }
 
 export function sectionKeyFromItem(item) {
-    return extractStringProp(item, 'key');
+    try { return parseDataLiteral(item).key || null; }
+    catch { return extractStringProp(item, 'key'); }
 }
 
 export function metaFromSectionItem(item) {
+    try {
+        const section = parseDataLiteral(item);
+        if (!section.key) return null;
+        return { ...section, cards: undefined };
+    } catch {}
     const key = sectionKeyFromItem(item);
     if (!key) return null;
     const label = extractStringProp(item, 'label') || key;
@@ -147,6 +175,10 @@ export function metaFromSectionItem(item) {
 }
 
 export function isLegacyEncryptedSectionItem(item) {
+    try {
+        const s = parseDataLiteral(item);
+        return s.encrypted === true || s.locked === true || Object.hasOwn(s, 'enc') || Object.hasOwn(s, '_enc');
+    } catch {}
     const source = String(item || '');
     return /\bencrypted\s*:\s*true\b/.test(source)
         || /(?:^|[,\{])\s*(?:enc|_enc)\s*:/.test(source)
@@ -156,7 +188,7 @@ export function isLegacyEncryptedSectionItem(item) {
 export function parseSectionItems(content) {
     const parsed = extractSectionsFromDataJs(content);
     if (!parsed) return null;
-    const sectionMap = {};
+    const sectionMap = Object.create(null);
     const sectionsMeta = [];
     for (const item of parsed.items) {
         const key = sectionKeyFromItem(item);
@@ -207,8 +239,7 @@ export function normalizeSectionMeta(meta) {
 export function renderSectionItem(meta, cards) {
     const sec = normalizeSectionMeta(meta);
     if (!sec) throw new Error('section key is required');
-    sec.cards = Array.isArray(cards) ? cards : [];
-    return pretty(sec, 1);
+    return pretty({ ...meta, ...sec, cards: Array.isArray(cards) ? cards : [] }, 1);
 }
 
 export function renderDataJsFromSectionItems(baseParts, sectionsMeta, sectionMap) {
@@ -221,7 +252,7 @@ export function renderDataJsFromSectionItems(baseParts, sectionsMeta, sectionMap
         const item = sectionMap[meta.key];
         if (!item) return;
         used.add(meta.key);
-        lines.push('    // ==================== ' + (meta.label || meta.key) + ' ====================');
+        lines.push('    // ==================== ' + String(meta.label || meta.key).replace(/[\r\n\u2028\u2029]/g, ' ') + ' ====================');
         lines.push('    ' + item + (idx === orderedMeta.length - 1 ? '' : ','));
     });
     if (lines.length > 1 && lines[lines.length - 1].endsWith(',')) {
@@ -237,7 +268,7 @@ function filterSectionContent(content, predicate) {
     const parsed = parseSectionItems(content);
     if (!parsed) return String(content || '');
     const keptMeta = [];
-    const keptMap = {};
+    const keptMap = Object.create(null);
     for (const meta of parsed.sectionsMeta) {
         const item = parsed.sectionMap[meta.key];
         if (!item || !predicate(meta, item)) continue;
@@ -255,8 +286,22 @@ export function discardLegacyEncryptedSections(content) {
 
 // 匿名访问只得到公开分类；旧密文也永远不会下发。
 export function stripPrivateSections(content) {
+    // Do not return the original source when unsupported/duplicate sections were
+    // skipped by the legacy source splitter: that could include a Private item.
+    try {
+        const parts = extractSectionsFromDataJs(content);
+        if (!parts) throw new Error('Missing sections');
+        const sections = parseDataLiteral('[' + parts.body + '\n]');
+        const keys = new Set();
+        for (const section of sections) {
+            if (!section || typeof section.key !== 'string' || !section.key || keys.has(section.key)) throw new Error('Invalid sections');
+            keys.add(section.key);
+        }
+    } catch { return 'var sections = [];\n'; }
     return filterSectionContent(content, (meta, item) => {
-        return meta.private !== true && !isLegacyEncryptedSectionItem(item);
+        // Unknown executable data cannot be proven public: fail closed.
+        try { return parseDataLiteral(item).private !== true && !isLegacyEncryptedSectionItem(item); }
+        catch { return false; }
     });
 }
 
@@ -273,7 +318,7 @@ export async function readSplitSnapshot(env, ns) {
     return null;
 }
 
-export async function writeSplitFromContent(env, ns, content) {
+export async function writeSplitFromContent(env, ns, content, previousContent = null) {
     if (!env.FAV_KV) return { ok: false, reason: 'missing-kv' };
     content = discardLegacyEncryptedSections(content);
     const parsed = parseSectionItems(content);
@@ -287,12 +332,17 @@ export async function writeSplitFromContent(env, ns, content) {
     parsed.sectionsMeta.forEach(meta => {
         writes.push(env.FAV_KV.put(sectionStorageKey(ns, meta.key), parsed.sectionMap[meta.key]));
     });
+    // Delete removed groups in the same persistence pass, never write a key twice.
+    const previous = previousContent ? parseSectionItems(previousContent) : null;
+    for (const meta of previous?.sectionsMeta || []) {
+        if (!Object.hasOwn(parsed.sectionMap, meta.key)) writes.push(env.FAV_KV.delete(sectionStorageKey(ns, meta.key)));
+    }
     await Promise.all(writes);
     return { ok: true, sections: parsed.sectionsMeta.length };
 }
 
-export async function applySectionDelta(env, ns, baseContent, payload) {
-    if (!env.FAV_KV) throw new Error('missing kv');
+// Build only. The save handler validates/backups the final content before persisting it once.
+export function prepareSectionDelta(baseContent, payload) {
     const parsed = parseSectionItems(baseContent);
     if (!parsed) throw new Error('当前数据不是 sections 格式，无法分类级保存');
     const sectionMap = { ...parsed.sectionMap };
@@ -302,24 +352,20 @@ export async function applySectionDelta(env, ns, baseContent, payload) {
     for (const item of changed) {
         const meta = normalizeSectionMeta(item && (item.meta || item));
         if (!meta) continue;
-        sectionMap[meta.key] = renderSectionItem(meta, item.cards);
+        let original = {};
+        if (sectionMap[meta.key]) {
+            try { original = parseDataLiteral(sectionMap[meta.key]); } catch {}
+        }
+        sectionMap[meta.key] = renderSectionItem({ ...original, ...(item.meta || item), ...meta, private: meta.private === true }, item.cards);
     }
     const sectionsMeta = (Array.isArray(payload.sectionsMeta) ? payload.sectionsMeta : parsed.sectionsMeta)
         .map(normalizeSectionMeta)
         .filter(Boolean)
         .filter(meta => sectionMap[meta.key]);
+    if (!changed.length && !deleted.length
+        && JSON.stringify(sectionsMeta) === JSON.stringify(parsed.sectionsMeta.map(normalizeSectionMeta))) {
+        return { content: baseContent, changedCount: 0, deletedCount: 0, sectionCount: sectionsMeta.length };
+    }
     const content = renderDataJsFromSectionItems(parsed, sectionsMeta, sectionMap);
-    const keys = nsSplitKeys(ns);
-    const writes = [
-        env.FAV_KV.put(keys.mode, SPLIT_VERSION),
-        env.FAV_KV.put(keys.sectionsMeta, JSON.stringify(sectionsMeta)),
-        env.FAV_KV.put(keys.snapshot, content)
-    ];
-    changed.forEach(item => {
-        const meta = normalizeSectionMeta(item && (item.meta || item));
-        if (meta) writes.push(env.FAV_KV.put(sectionStorageKey(ns, meta.key), sectionMap[meta.key]));
-    });
-    deleted.forEach(key => writes.push(env.FAV_KV.delete(sectionStorageKey(ns, key))));
-    await Promise.all(writes);
     return { content, changedCount: changed.length, deletedCount: deleted.length, sectionCount: sectionsMeta.length };
 }

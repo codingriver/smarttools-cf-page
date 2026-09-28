@@ -1,3 +1,4 @@
+import { registerImporter, sitePattern } from './site.js';
 function sameConfigPage(tabUrl, configUrl) {
   try {
     const a = new URL(tabUrl || '');
@@ -41,7 +42,9 @@ async function tryDeliverPending(tabId, tabUrl) {
     ? await chrome.storage.local.get('pendingOpenTabsImport')
     : {};
   const payload = storageData.pendingOpenTabsImport;
-  if (!payload || !payload.configUrl || !sameConfigPage(tabUrl, payload.configUrl)) return;
+  const configured = await chrome.storage.sync.get('configUrl');
+  if (!payload || payload.configUrl !== configured.configUrl || !sameConfigPage(tabUrl, payload.configUrl)) return;
+  if (!await chrome.permissions.contains({ origins: [sitePattern(payload.configUrl)] })) return;
 
   for (let i = 0; i < 8; i++) {
     try {
@@ -57,3 +60,25 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete') return;
   tryDeliverPending(tabId, tab.url);
 });
+
+let registration = Promise.resolve();
+function syncRegistration() {
+  registration = registration.catch(() => {}).then(async () => {
+    const { configUrl } = await chrome.storage.sync.get('configUrl');
+    await registerImporter(configUrl);
+  }).catch(() => {});
+  return registration;
+}
+chrome.runtime.onInstalled.addListener(syncRegistration);
+chrome.runtime.onStartup.addListener(syncRegistration);
+chrome.storage.onChanged.addListener((changes, area) => { if (area === 'sync' && changes.configUrl) syncRegistration(); });
+chrome.permissions.onRemoved.addListener(syncRegistration);
+chrome.permissions.onAdded.addListener(syncRegistration);
+
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('')) || message?.action !== 'refresh-import-registration') return;
+  syncRegistration().then(() => reply({ ok: true }));
+  return true;
+});
+import { initializeClient } from './cache-controller.js';
+initializeClient();

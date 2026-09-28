@@ -1,8 +1,8 @@
 /
-  Cache-Control: public, max-age=31536000, immutable
+  Cache-Control: public, no-cache
 
 /index.html
-  Cache-Control: public, max-age=31536000, immutable
+  Cache-Control: public, no-cache
 
 /config.html
   Cache-Control: no-cache

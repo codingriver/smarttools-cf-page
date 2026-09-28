@@ -99,6 +99,13 @@ for (const reference of ['shared/note-modal.js', 'shared/note-modal.css']) {
   assert(index.includes(`${reference}?v=${hash}`), `fingerprint missing for ${reference}`);
 }
 
+for (const route of ['/', '/index.html', '/sw.js']) {
+  const rule = headers.split(/\r?\n\r?\n/).find(block => block.split(/\r?\n/)[0] === route);
+  assert(rule && /Cache-Control: (?:public, )?no-cache/.test(rule), `${route} must revalidate instead of retaining old code`);
+  assert(!rule.includes('immutable'), `${route} must not use immutable caching`);
+}
+assert(index.includes("updateViaCache: 'none'"), 'service worker update must bypass HTTP cache');
+
 assert(/\/shared\/\*\s+Cache-Control: public, max-age=31536000, immutable/.test(headers), 'shared immutable cache rule missing');
 assert(/\/extensions\/\*\s+Cache-Control: public, max-age=31536000, immutable/.test(headers), 'extensions immutable cache rule missing');
 assert(!routes.include.includes('/*') && !routes.include.includes('/'), 'homepage is still routed through Pages Functions');
@@ -106,6 +113,23 @@ assert(dataFunction.includes('public, max-age=31536000, s-maxage=86400, stale-wh
 assert(extensionPopupHtml.includes('id="importActive"') && extensionPopupHtml.includes('收藏当前页'), 'current-page import button missing from extension popup');
 assert(extensionPopupJs.includes("query = { active: true, currentWindow: true }"), 'current-page import does not query only the active tab');
 assert(extensionPopupJs.includes("importTabs('active')"), 'current-page import button is not bound to active import');
+const extensionDirectory = path.join(dist, 'extensions/open-tabs-importer');
+const extensionManifest = JSON.parse(await fs.readFile(path.join(extensionDirectory, 'manifest.json'), 'utf8'));
+assert(extensionManifest.version === '1.2.0', 'extension version mismatch');
+assert(JSON.stringify(extensionManifest.permissions) === JSON.stringify(['tabs', 'scripting', 'storage', 'contextMenus']), 'extension permission mismatch');
+for (const file of ['start.html', 'start.js', 'start.css', 'draft-actions.js', 'library-editing.js', 'editor-dialog.js', 'desktop-drag.js', 'account-component.js', 'account.css', 'navigation.js', 'view-utils.js', 'fonts/FjallaOne-Regular.ttf', 'fonts/OFL.txt', 'home.html', 'home.js', 'home.css', 'client.js', 'cache-db.js', 'cache-controller.js', 'menu-model.js', 'model.js', 'site.js']) {
+  assert((await fs.stat(path.join(extensionDirectory, file))).isFile(), `missing local extension resource: ${file}`);
+}
+for (const pageName of ['home', 'start']) {
+    const html = await fs.readFile(path.join(extensionDirectory, pageName + '.html'), 'utf8');
+    assert(!/<(?:script|iframe)[^>]+(?:src=["']https?:|srcdoc=)/i.test(html), 'no remote executable or embedded website');
+    const js = await fs.readFile(path.join(extensionDirectory, pageName + '.js'), 'utf8');
+    assert(!/new Function|\beval\s*\(/.test(js), 'MV3 pages do not execute strings');
+  }
+  assert(!extensionManifest.chrome_url_overrides, 'browsing homepage does not replace new tabs');
+  for (const excluded of ['DESIGN.md', '.wrangler', 'scripts']) assert(!(await fs.stat(path.join(dist, excluded)).catch(() => null)), 'research and tests excluded from release');
+  assert(extensionManifest.web_accessible_resources === undefined, 'management/cache resources must not be web-accessible');
+
 assert(cacheInvalidators.every(source => source.includes('invalidatePublicDataCache')), 'a data mutation route does not invalidate the public cache');
 assert(config.includes('id="btnAccountSecurity"') && config.includes('id="passwordRecoveryModal"'), 'account security UI missing from build');
 assert(!config.includes('PASSWORD_RECOVERY_TOKEN='), 'recovery token assignment leaked into the admin build');

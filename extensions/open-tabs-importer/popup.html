@@ -8,7 +8,8 @@
 </head>
 <body>
   <main>
-    <h1>SmartTools 标签导入</h1>
+    <h1>SmartTools</h1>
+    <nav class="page-nav" aria-label="扩展页面"><button id="openStart" type="button">打开主页</button><button id="openHome" type="button">书签管理</button></nav>
     <section class="group">
       <label class="field">
         <span>后台地址</span>
@@ -17,7 +18,6 @@
       <div class="url-btn-row">
         <button id="saveUrl" class="url-btn" type="button">保存地址</button>
         <button id="openBackend" class="url-btn" type="button">打开后台</button>
-        <button id="openHome" class="url-btn" type="button">打开主页</button>
       </div>
     </section>
 
@@ -68,9 +68,10 @@
       </div>
     </section>
 
+    <p id="cacheStatus" class="hint"></p><p id="captureStatus" class="status" role="status"></p>
     <p id="status" class="status"></p>
     <p class="hint">“收藏当前页”只处理当前激活的 http/https 页面；批量导入不包含 SmartTools 后台页本身。</p>
   </main>
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

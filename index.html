@@ -1842,7 +1842,7 @@ html[data-subcard-layout="directory"] .two-line-card .card-header {
         if (!('serviceWorker' in navigator)) return;
         if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
         window.addEventListener('load', function () {
-            navigator.serviceWorker.register('/sw.js').catch(function (e) {
+            navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(function (e) {
                 console.warn('service worker registration failed:', e && e.message);
             });
         });

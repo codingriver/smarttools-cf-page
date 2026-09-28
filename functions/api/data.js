@@ -1,16 +1,13 @@
+import { readData } from '../_shared/data-source.js';
+import { structuredSections } from '../_shared/structured-data.js';
 import { getCookieToken, getPayload, jsonResponse } from '../_shared/auth.js';
 import { ensureDataMeta, makeDataEtag, sha256HexText } from '../_shared/data-meta.js';
 import { readSiteConfig } from '../_shared/site-config.js';
 import {
-    discardLegacyEncryptedSections,
-    readSplitSnapshot,
     stripPrivateSections
 } from '../_shared/data-split.js';
 import { publicDataCacheKey } from '../_shared/public-data-cache.js';
 
-const DATA_KEY = 'admin:data_js';
-const SOURCE_KEY = 'admin:data_source';
-const EMPTY_STUB = `/* data.js 尚未初始化 */\nvar sections = [];\n`;
 const PUBLIC_DATA_CACHE_CONTROL = 'public, max-age=31536000, s-maxage=86400, stale-while-revalidate=31536000';
 
 function serializeForScript(value) {
@@ -22,48 +19,6 @@ function serializeForScript(value) {
 
 function publicCacheKey(request) {
     return publicDataCacheKey(request);
-}
-
-async function readStaticData(request, env) {
-    const url = new URL('/data.js', request.url);
-    try {
-        if (env.ASSETS && typeof env.ASSETS.fetch === 'function') {
-            const response = await env.ASSETS.fetch(url.toString());
-            if (response.ok) return await response.text();
-        }
-    } catch {}
-    return null;
-}
-
-async function readData(request, env) {
-    const url = new URL(request.url);
-    const forced = url.searchParams.get('source');
-    let configured = 'static';
-    let kvContent = null;
-
-    if (env.FAV_KV) {
-        const [saved, data, snapshot] = await Promise.all([
-            env.FAV_KV.get(SOURCE_KEY),
-            env.FAV_KV.get(DATA_KEY),
-            readSplitSnapshot(env, 'admin')
-        ]);
-        if (saved === 'kv' || saved === 'static') configured = saved;
-        kvContent = snapshot || data || null;
-    }
-
-    const selected = forced === 'kv' || forced === 'static' ? forced : configured;
-    let content = selected === 'kv' ? kvContent : null;
-    let actualSource = selected;
-
-    if (!content) {
-        content = await readStaticData(request, env);
-        actualSource = content ? (selected === 'kv' ? 'static-fallback' : 'static') : 'empty';
-    }
-    return {
-        content: discardLegacyEncryptedSections(content || EMPTY_STUB),
-        configured: selected,
-        actualSource
-    };
 }
 
 export async function onRequestGet(context) {
@@ -113,10 +68,15 @@ export async function onRequestGet(context) {
         ? (fullMeta.etag || makeDataEtag(responseHash, 'full'))
         : makeDataEtag(responseHash, 'public');
 
-    if (format === 'json') {
+    if (format === 'json' || format === 'structured') {
+        let sections;
+        if (format === 'structured') {
+            try { sections = structuredSections(loaded.rawContent, isAdmin); }
+            catch { return jsonResponse({ ok: false, error: '数据无法安全转换为结构化格式，请在网站后台检查数据', code: 'UNSUPPORTED_DATA' }, 422); }
+        }
         return jsonResponse({
             ok: true,
-            content: responseContent,
+            ...(format === 'structured' ? { sections, hasKV: !!env.FAV_KV } : { content: responseContent }),
             source: loaded.actualSource,
             configured: loaded.configured,
             namespace: 'admin',
@@ -125,7 +85,7 @@ export async function onRequestGet(context) {
             dataHash: responseHash,
             privateFiltered: !isAdmin,
             siteConfig
-        });
+        }, 200, { 'Cache-Control': isAdmin ? 'private, no-store' : 'no-store', 'ETag': responseEtag });
     }
 
     const headers = {

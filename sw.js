@@ -1,6 +1,6 @@
 /*
  * SmartTools Service Worker
- * 目标：公开主页「立即显示 + 最长本地（≥3 年）+ 后台更新 + 离线」。
+ * 目标：公开主页在线获取最新 HTML，离线回退；公开静态资源长期缓存。
  *
  * 安全边界（必须遵守 AGENTS.md）：
  *  - 只缓存「公开 / 匿名」资源；绝不缓存带 private / no-store 的响应，
@@ -8,7 +8,7 @@
  *  - 管理端登录态、Private 数据不会进入 Cache Storage。
  */
 
-const VERSION = 'smarttools-v1';
+const VERSION = 'smarttools-v2';
 const CONTENT_CACHE = VERSION + '-content';
 const META_CACHE = VERSION + '-meta';
 // 最长本地保留：3 年。超过则 prune（浏览器配额压力下会更早，但上限由我们控制）。
@@ -71,21 +71,27 @@ async function writeMeta(url) {
 
 // ---- 策略 ----
 
-// 首页 HTML：cache-first + 后台更新（stale-while-revalidate）。
-// 后台用 cache:'reload' 绕过 HTTP 缓存，确保部署后立即拉到新 HTML。
-async function staleWhileRevalidate(req) {
-  const cache = await caches.open(CONTENT_CACHE);
-  const cached = await cache.match(req);
-  const network = fetch(req, { cache: 'reload' })
-    .then(async (res) => {
-      if (res && res.ok && isPublicResponse(res)) {
-        await cache.put(req, res.clone());
-        await writeMeta(req.url);
-      }
-      return res;
-    })
-    .catch(() => cached);
-  return cached || network;
+// 首页包含内联 CSS / JS，不能像指纹资源一样返回旧版后再后台更新。
+// 显式 revalidate 也用于绕过旧部署留下的一年 immutable HTTP 缓存。
+async function networkFirstHome(req) {
+  let res;
+  try {
+    res = await fetch(req, { cache: 'no-cache' });
+  } catch (_) {
+    const cache = await caches.open(CONTENT_CACHE);
+    return (await cache.match(req)) || (await cache.match('/')) ||
+      (await cache.match('/index.html')) || Response.error();
+  }
+  if (res.ok && isPublicResponse(res)) {
+    try {
+      const cache = await caches.open(CONTENT_CACHE);
+      await cache.put(req, res.clone());
+      await writeMeta(req.url);
+    } catch (_) {
+      // 配额 / Cache Storage 写入失败不能丢弃已经拿到的最新 HTML。
+    }
+  }
+  return res;
 }
 
 // 指纹化静态资源与跨源图标：命中即返回，未命中才联网（不每次后台重拉）。
@@ -96,9 +102,13 @@ async function cacheFirstOnly(req) {
   if (cached) return cached;
   try {
     const res = await fetch(req);
-    if (res && res.type !== 'error') {
-      await cache.put(req, res.clone());
-      await writeMeta(req.url);
+    if (res && (res.ok || res.type === 'opaque') && isPublicResponse(res)) {
+      try {
+        await cache.put(req, res.clone());
+        await writeMeta(req.url);
+      } catch (_) {
+        // 缓存写入失败不影响在线响应。
+      }
     }
     return res;
   } catch (e) {
@@ -164,7 +174,7 @@ self.addEventListener('activate', (event) => {
       const names = await caches.keys();
       await Promise.all(
         names
-          .filter((n) => n !== CONTENT_CACHE && n !== META_CACHE)
+          .filter((n) => n.startsWith('smarttools-') && n !== CONTENT_CACHE && n !== META_CACHE)
           .map((n) => caches.delete(n))
       );
       await pruneOld();
@@ -179,10 +189,10 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // 首页导航：公开 HTML → SWR
+  // 首页导航：在线优先；仅网络失败时回退公开离线副本
   if (req.mode === 'navigate') {
     if (url.origin === self.location.origin && (url.pathname === '/' || url.pathname === '/index.html')) {
-      event.respondWith(staleWhileRevalidate(req));
+      event.respondWith(networkFirstHome(req));
     } else {
       // 其它页面（含 admin config.html）直连；离线回退主页
       event.respondWith(passthroughOrHomeFallback(req));

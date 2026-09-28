@@ -1,19 +1,17 @@
 {
   "manifest_version": 3,
   "name": "SmartTools Tabs Importer",
-  "version": "1.0.0",
-  "description": "Import currently open Chrome/Edge tabs into SmartTools.",
-  "permissions": ["tabs", "scripting", "storage"],
-  "host_permissions": ["<all_urls>"],
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["pending-import.js"],
-      "run_at": "document_idle"
-    }
+  "version": "1.2.0",
+  "description": "Browse your built-in SmartTools homepage, manage bookmarks and groups, sign in, and import open tabs.",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage",
+    "contextMenus"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "action": {
     "default_title": "Import open tabs to SmartTools",
@@ -26,5 +24,9 @@
   "icons": {
     "48": "icons/48.png",
     "128": "icons/128.png"
-  }
+  },
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ]
 }

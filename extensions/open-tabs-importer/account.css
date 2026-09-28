@@ -1,0 +1,10 @@
+/* Shared account disclosure; scoped to avoid affecting website or either page layout. */
+.account-menu{position:relative;font-size:13px;line-height:1.5;color:var(--text)}
+.account-menu>summary{list-style:none;display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:4px 8px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.account-menu>summary::-webkit-details-marker{display:none}.account-menu>summary:hover,.account-menu[open]>summary{background:var(--hover,var(--sidebar))}
+.account-avatar{width:27px;height:27px;background:var(--accent);border-radius:50%;color:#fff;display:grid;place-items:center;font-size:12px}.account-chevron{color:var(--muted)}
+.account-panel{position:absolute;right:0;top:calc(100% + 12px);width:360px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 84px);overflow:auto;overscroll-behavior:contain;padding:20px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 40px #0003;z-index:100}
+.account-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.account-heading strong{font-size:15px}.account-heading #session{margin-top:4px;font-size:11px;color:var(--muted)}.account-heading button{font-size:11px;padding:6px 8px}
+.connection{padding:16px 0}.connection form{display:flex;flex-direction:column;gap:8px}.connection label{font-size:12px}.connection input{width:100%;min-width:0}.connection button{font-size:12px}.account-panel #loginForm{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.cache-status{border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:11px;overflow-wrap:anywhere}.cache-menu{margin-top:10px}.cache-menu summary{cursor:pointer;color:var(--text);font-size:12px}.cache-panel{padding-top:10px}.cache-panel p{margin:0 0 12px}.cache-actions{display:flex;flex-wrap:wrap;gap:8px}.cache-actions button{font-size:11px}
+@media(max-width:600px){.account-menu:has(#accountAvatar:not([hidden])) #accountLabel{display:none}.account-panel{width:calc(100vw - 24px)}}

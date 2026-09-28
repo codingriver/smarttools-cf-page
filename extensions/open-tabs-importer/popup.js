@@ -1,4 +1,6 @@
-const DEFAULT_CONFIG_URL = 'https://smarttools-4xj.pages.dev/config.html';
+import { openExtensionPage } from './navigation.js';
+import { client } from './client.js';
+import { DEFAULT_CONFIG_URL, normalizeConfigUrl, authorizeSite } from './site.js';
 
 function requireElement(id) {
   const el = document.getElementById(id);
@@ -31,12 +33,6 @@ function setStatus(message, kind = '') {
   els.status.className = 'status ' + kind;
 }
 
-function normalizeConfigUrl(raw) {
-  const url = new URL(raw || DEFAULT_CONFIG_URL);
-  if (!url.pathname || url.pathname === '/') url.pathname = '/config.html';
-  return url.toString();
-}
-
 async function getConfigUrl() {
   const data = await chrome.storage.sync.get({ configUrl: DEFAULT_CONFIG_URL });
   return normalizeConfigUrl(data.configUrl);
@@ -44,12 +40,12 @@ async function getConfigUrl() {
 
 async function saveConfigUrl() {
   try {
-    const configUrl = normalizeConfigUrl(els.configUrl.value);
+    const configUrl = await authorizeSite(els.configUrl.value);
     await chrome.storage.sync.set({ configUrl });
     els.configUrl.value = configUrl;
     setStatus('后台地址已保存', 'ok');
   } catch (e) {
-    setStatus('地址格式不正确', 'err');
+    setStatus(e.message, 'err');
   }
 }
 
@@ -67,12 +63,7 @@ async function openBackend() {
   setStatus('已打开 SmartTools 后台', 'ok');
 }
 
-function getBackendHomeUrl(configUrl) {
-  const url = new URL(configUrl);
-  return `${url.origin}/`;
-}
-
-async function openHome() {
+async function openHome(page = 'home.html') {
   let configUrl;
   try {
     configUrl = normalizeConfigUrl(els.configUrl.value || await getConfigUrl());
@@ -82,8 +73,8 @@ async function openHome() {
   }
   await chrome.storage.sync.set({ configUrl });
   els.configUrl.value = configUrl;
-  await chrome.tabs.create({ url: getBackendHomeUrl(configUrl), active: true });
-  setStatus('已打开 SmartTools 主页', 'ok');
+  await openExtensionPage(page);
+  setStatus(page === 'start.html' ? '已打开浏览主页' : '已打开书签管理', 'ok');
 }
 
 function sameConfigPage(tabUrl, configUrl) {
@@ -191,9 +182,9 @@ async function deliverTabsToConfigTab(tabId, payload) {
 async function importTabs(scope) {
   let configUrl;
   try {
-    configUrl = normalizeConfigUrl(els.configUrl.value || await getConfigUrl());
+    configUrl = await authorizeSite(els.configUrl.value);
   } catch (e) {
-    setStatus('请先填写正确的后台地址', 'err');
+    setStatus(e.message, 'err');
     return;
   }
   await chrome.storage.sync.set({ configUrl });
@@ -390,10 +381,12 @@ async function exportTabsToJsonFile(scope) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  els.configUrl.value = await getConfigUrl();
+  try { els.configUrl.value = await getConfigUrl(); }
+  catch (error) { els.configUrl.value = DEFAULT_CONFIG_URL; setStatus(error.message, 'err'); }
   els.saveUrl.addEventListener('click', saveConfigUrl);
   els.openBackend.addEventListener('click', openBackend);
-  els.openHome.addEventListener('click', openHome);
+  els.openHome.addEventListener('click', () => openHome());
+  requireElement('openStart').addEventListener('click', () => openHome('start.html'));
   els.importActive.addEventListener('click', () => importTabs('active'));
   els.importCurrent.addEventListener('click', () => importTabs('current'));
   els.importAll.addEventListener('click', () => importTabs('all'));
@@ -405,4 +398,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   els.exportAllFile.addEventListener('click', () => exportTabsToFile('all'));
   els.exportJsonCurrent.addEventListener('click', () => exportTabsToJsonFile('current'));
   els.exportJsonAll.addEventListener('click', () => exportTabsToJsonFile('all'));
+});
+
+async function showCaptureStatus() {
+  try {
+    const value = await client('status.get', await getConfigUrl());
+    document.getElementById('captureStatus').textContent = value ? value.text + ' · ' + new Date(value.at).toLocaleString() : '右键网页或链接即可收藏；云端写入需要登录。';
+  } catch (error) { document.getElementById('captureStatus').textContent = error.message; }
+}
+async function showCacheStatus(sync = false) {
+  try {
+    const configUrl = await getConfigUrl();
+    const cached = await client('cache.get', configUrl);
+    document.getElementById('cacheStatus').textContent = cached ? `本机缓存：${cached.sections.length} 个分组 · ${new Date(cached.savedAt).toLocaleString()}` : '尚无本机缓存';
+    if (sync) {
+      const result = await client('sync', configUrl);
+      document.getElementById('cacheStatus').textContent = result.warning || (result.loggedIn ? '已连接云端，收藏位置已就绪' : '未登录；已有本机缓存和收藏位置仍保留');
+    }
+  } catch (error) { document.getElementById('cacheStatus').textContent += ' · ' + error.message; }
+}
+document.addEventListener('DOMContentLoaded', async () => { await showCaptureStatus(); await showCacheStatus(true); });
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('background.js') || message?.channel !== 'smarttools-cache-event') return;
+  if (message.type === 'status') showCaptureStatus();
+  if (['changed', 'cleared'].includes(message.type)) showCacheStatus();
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes.configUrl) showCacheStatus(true);
 });

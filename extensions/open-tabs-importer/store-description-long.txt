@@ -1,45 +1,24 @@
-# SmartTools Tabs Importer
+SmartTools Tabs Importer & Bookmark Manager
 
-Quickly save the current page or import currently open browser tabs into your SmartTools bookmark manager.
+Save the current page or import open tabs into your own SmartTools instance, and manage its bookmarks from an independent extension homepage.
 
-## How It Works
+Features
+- Right-click a page, link or toolbar icon to save into a group or an existing expandable card.
+- Shared long-lived local cache, including Private, readable offline and after logout; separate clear controls.
+- Existing current-page, current-window and all-window imports, clipboard and HTML/JSON exports.
+- Built-in dark icon-desktop homepage with categories and single-level folders and light list-based manager with a right-side editor; neither replaces the browser new-tab page.
+- Sign in with your existing SmartTools administrator account or reuse the site's session.
+- Browse/search bookmarks and groups, manage cards and subcards, move/reorder items, and mark groups Private.
+- Explicit cloud save, unsaved-change reminders and stale-save conflict messages.
+- Keep special card types intact; advanced settings, backup and restore remain in the website backend.
 
-1. Open and log in to your SmartTools admin panel (`/config.html`)
-2. Click the extension icon in your browser toolbar
-3. Choose "Save current page", "Import current window tabs", or "Import all window tabs"
-4. Confirm in the SmartTools admin panel and save
+Setup
+Enter your SmartTools HTTPS backend URL, approve access to that site, then open the management homepage. The server must support structured data and version-checked saves. Imports still require confirmation and save in the website backend.
 
-## Features
+Privacy and permissions
+Required: tabs, scripting, storage, contextMenus. Optional site access is requested only for your configured SmartTools origin; no required all-sites grant or all-page content script. No Chrome native-bookmark synchronization, cookies permission or browsing-history access.
+Credentials go only to your configured SmartTools login endpoint. Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the browsing homepage, manager and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory. The configured site URL uses browser sync storage; pending tab imports use local storage until acknowledgement. Saved bookmarks reside on your own SmartTools server. Images can load from their configured image hosts. No analytics or ads.
 
-- **One-click current page save** — Send only the active tab to SmartTools
-- **Batch import** — Grab all open tabs from the current window or every window at once
-- **Selective import** — Uncheck any tabs you don't want before importing
-- **Auto parent card** — All imported tabs become sub-cards under a single parent card you name
-- **Category assignment** — Choose which SmartTools category to import into; preference is saved
-- **Favicon support** — Preserves favicon image URLs for each imported tab
-- **Smart delivery** — If the admin panel isn't open, the extension opens it automatically and waits for it to be ready before delivering the tab list
+Private means server-side access control, not encryption. Browser Cookie policies may prevent extension login; you can continue in the website backend. Cloudflare KV is eventually consistent: avoid saving from several clients simultaneously.
 
-## What Gets Imported
-
-- Tab title
-- Tab URL (http/https only)
-- Favicon image URL
-- No browser history, passwords, cookies, or any other data
-
-## Open Source
-
-This extension is part of the open-source SmartTools project.
-Source code: https://github.com/codingriver/SmartTools
-
-## Privacy
-
-- The extension only reads the active tab or open tab titles and URLs when you click import
-- All data goes directly to your own SmartTools instance — no third-party server is involved
-- Nothing is stored remotely; the backend URL is saved only in your local browser storage
-
-## Permissions
-
-- `tabs` — Read tab titles and URLs to build the import list
-- `scripting` — Inject the import handshake into your SmartTools admin page
-- `storage` — Save your SmartTools backend URL and pending import state locally
-- `<all_urls>` — Required to deliver import data to your SmartTools instance at any domain you configure; the script only activates on your own SmartTools admin page
+Desktop organization: right-click/More/keyboard menus and left-button dragging for ordering and safe cross-group/folder moves. No nested folders. Apply edits to a page-local draft, then explicitly save to cloud; conflicts preserve drafts. Search is local-only. Static initialization requires the separate manager. No additional permissions.

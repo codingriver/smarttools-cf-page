@@ -1,9 +1,9 @@
+import { readData } from '../_shared/data-source.js';
 import { requireAuth, jsonResponse } from '../_shared/auth.js';
-import { writeDataMeta } from '../_shared/data-meta.js';
+import { writeDataMeta, makeDataEtag, sha256HexText } from '../_shared/data-meta.js';
 import {
-    applySectionDelta,
+    prepareSectionDelta,
     discardLegacyEncryptedSections,
-    readSplitSnapshot,
     writeSplitFromContent
 } from '../_shared/data-split.js';
 import { invalidatePublicDataCache } from '../_shared/public-data-cache.js';
@@ -15,7 +15,16 @@ const BACKUP_PREFIX = 'admin:backup:';
 const SITE_CONFIG_KEY = 'admin:site_config';
 const DEFAULT_BACKUP_RETENTION = 30;
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost(context) {
+    try { return await saveRequest(context); }
+    catch {
+        // Do not leak storage errors or claim that a partially completed write was rolled back.
+        return jsonResponse({ ok: false, code: 'SAVE_STORAGE_ERROR', outcomeUnknown: true,
+            error: '云端存储暂时不可用，保存结果未确认；请保留草稿并先核对云端，不要直接重复提交' }, 503);
+    }
+}
+
+async function saveRequest({ request, env }) {
     const fail = await requireAuth(request, env);
     if (fail) return fail;
     if (!env.FAV_KV) return jsonResponse({ ok: false, error: '未绑定 KV(FAV_KV)' }, 500);
@@ -30,11 +39,19 @@ export async function onRequestPost({ request, env }) {
         return jsonResponse({ ok: false, error: '内容为空' }, 400);
     }
 
-    const [storedData, snapshot] = await Promise.all([
-        env.FAV_KV.get(DATA_KEY),
-        readSplitSnapshot(env, NS)
-    ]);
-    const old = discardLegacyEncryptedSections(snapshot || storedData || '');
+    // Check the selected source before preparing a delta. Preparation performs no KV writes.
+    const selected = await readData(request, env, false);
+    const currentEtag = makeDataEtag(await sha256HexText(selected.content), 'full');
+    if (body.baseEtag !== undefined && (body.baseEtag !== currentEtag
+        || (body.baseSource !== undefined && body.baseSource !== selected.configured))) {
+        return jsonResponse({ ok: false, code: 'SAVE_CONFLICT', error: '云端数据或数据源已变化，请保留草稿，刷新并核对后再保存' }, 409);
+    }
+    if (saveMode === 'sections' && selected.actualSource !== 'kv') {
+        return jsonResponse({ ok: false, code: 'INITIALIZATION_REQUIRED', error: '静态数据必须先完整初始化到 KV' }, 409);
+    }
+
+    // Apply exactly the snapshot whose ETag was checked, not a second KV read.
+    const old = discardLegacyEncryptedSections(selected.storedContent || '');
     let deltaResult = null;
 
     if (saveMode === 'sections') {
@@ -42,7 +59,7 @@ export async function onRequestPost({ request, env }) {
             return jsonResponse({ ok: false, error: '当前没有可增量更新的数据，请先完整保存一次' }, 409);
         }
         try {
-            deltaResult = await applySectionDelta(env, NS, old, body);
+            deltaResult = prepareSectionDelta(old, body);
             content = deltaResult.content;
         } catch (error) {
             return jsonResponse({
@@ -71,14 +88,14 @@ export async function onRequestPost({ request, env }) {
         await Promise.all([
             env.FAV_KV.put(DATA_KEY, content),
             env.FAV_KV.put(SOURCE_KEY, 'kv'),
-            writeSplitFromContent(env, NS, content)
+            writeSplitFromContent(env, NS, content, old)
         ]);
     } else if (await env.FAV_KV.get(SOURCE_KEY) !== 'kv') {
         await env.FAV_KV.put(SOURCE_KEY, 'kv');
     }
 
     const meta = contentChanged ? await writeDataMeta(env, NS, content) : null;
-    if (contentChanged) await invalidatePublicDataCache(request);
+    if (contentChanged || selected.actualSource !== 'kv') await invalidatePublicDataCache(request);
     return jsonResponse({
         ok: true,
         backup: backupName,
@@ -92,7 +109,7 @@ export async function onRequestPost({ request, env }) {
             sectionCount: deltaResult.sectionCount
         } : null,
         dataVersion: meta && meta.version,
-        dataEtag: meta && meta.etag
+        dataEtag: meta ? meta.etag : makeDataEtag(await sha256HexText(content), 'full')
     });
 }
 

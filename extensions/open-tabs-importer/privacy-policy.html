@@ -15,43 +15,25 @@
   </style>
 </head>
 <body>
-  <h1>Privacy Policy</h1>
-  <p><strong>SmartTools Open Tabs Importer</strong></p>
-  <p>This Chrome/Edge extension is designed to save your current active page or import your currently open browser tabs into your personal SmartTools bookmark manager.</p>
-
-  <h2>Data Collection</h2>
-  <p>The extension collects the <strong>title and URL</strong> of your current active tab or currently open browser tabs only when you actively click the corresponding import button. No data is collected, transmitted, or stored remotely by the extension itself.</p>
-  <p>All imported data is sent directly to your own SmartTools backend instance for storage — it does not go through any third-party server controlled by this extension.</p>
-
-  <h2>Data Usage</h2>
+  <h1>Privacy Policy — SmartTools Tabs Importer</h1>
+  <p>This extension imports open tabs and provides an independent management page for your own SmartTools bookmarks. It does not replace the new-tab page or manage Chrome's native bookmarks.</p>
+  <h2>Data processed</h2>
   <ul>
-    <li>Read the active tab or open tabs (titles and URLs) only at the user's explicit request</li>
-    <li>Send tab data to your own SmartTools backend via <code>window.postMessage</code></li>
-    <li>Store the SmartTools backend URL locally in browser <code>chrome.storage</code> (local to your browser only)</li>
+    <li>When you use the context menu: the chosen page/link URL and page title are sent to your configured SmartTools server after authentication. Existing cached destination names, including Private, appear in menus.</li>
+    <li>When you import, copy or export tabs: tab titles, HTTP(S) URLs and favicon URLs.</li>
+    <li>When you sign in: the administrator username and password you enter are sent only to your configured SmartTools site's login endpoint over HTTPS (local HTTP is allowed for development).</li>
+    <li>When browsing or editing: that site's bookmark and group data, including Private groups for an authenticated administrator. Cloud saves write to your own SmartTools server.</li>
   </ul>
-
-  <h2>Data Storage</h2>
-  <p>The extension stores the following locally in your browser — no remote server is involved:</p>
-  <ul>
-    <li>The configured SmartTools backend URL (chrome.storage.local)</li>
-    <li>Pending import data during the import handshake (chrome.storage.local, cleared after delivery)</li>
-    <li>Category preference for import destination (cookie, scoped to your SmartTools domain)</li>
-  </ul>
-
-  <h2>Permissions Used</h2>
-  <ul>
-    <li><code>tabs</code> — read the active tab or tab titles and URLs for the import list</li>
-    <li><code>scripting</code> — inject the import handshake script into the SmartTools config page</li>
-    <li><code>storage</code> — save the backend URL and pending import state locally</li>
-    <li><code><all_urls></code> — required to deliver import data to your SmartTools backend (which may be hosted at any domain you configure). The content script only performs work on your own SmartTools backend page.</li>
-  </ul>
-
-  <h2>Data Sharing</h2>
-  <p>The extension does not share any user data with third parties, analytics services, or ad networks.</p>
-
+  <h2>Browser storage</h2>
+  <p>The configured site URL is stored in chrome.storage.sync and may synchronize with your browser account if browser sync is enabled. The last selected group key per site is a local interface preference in chrome.storage.local (not bookmark content). Pending tab imports are temporarily stored in chrome.storage.local until the website acknowledges them. Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the browsing homepage, manager and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory.</p>
+  <p>The browser manages the site's HttpOnly, Secure, SameSite=Strict login cookie. The extension cannot read that cookie and has no cookies permission. Logout affects that site's session in the same browser profile. Private is server-side access control, not encryption.</p>
+  <h2>Site access and network requests</h2>
+  <p>The extension requests access to the site you configure, on demand. It no longer requires an all-sites grant or injects a script into every webpage. Management API requests go to the configured SmartTools site. The import script is dynamically registered only on its configuration page.</p>
+  <p>Bookmark images can load from the image hosts specified in your bookmark data; those hosts receive ordinary image requests. Opening a bookmark contacts its destination. No analytics, tracking or advertising service is included.</p>
+  <h2>Your controls</h2>
+  <p>You can revoke site permission or uninstall the extension in browser settings. Logout, detected session expiry and permission revocation revoke cloud write access, not local viewing. On shared devices, log out AND use the homepage’s separate clear-cache controls. Clearing cache alone does not end your server session; a later authenticated refresh can download it again. Unsaved edits are discarded when the page closes. Remove any undelivered pending imports by clearing extension storage. Deleting the extension does not delete bookmarks already saved on your SmartTools server.</p>
   <h2>Contact</h2>
-  <p>If you have questions about this privacy policy, please open an issue on the project GitHub repository.</p>
-
-  <p class="updated">Last updated: June 2026</p>
+  <p>Please open an issue in the SmartTools project repository for questions about this policy. Do not include passwords, cookies or Private data in reports.</p>
+  <p class="updated">Last updated: September 28, 2026</p>
 </body>
 </html>

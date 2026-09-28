@@ -22,7 +22,8 @@ if (!(chrome && chrome.storage && chrome.storage.local)) {
   async function getPendingPayloadForCurrentPage() {
     var data = await chrome.storage.local.get('pendingOpenTabsImport');
     var payload = data.pendingOpenTabsImport;
-    if (!payload || !payload.configUrl) return null;
+    var configured = await chrome.storage.sync.get('configUrl');
+    if (!payload || !payload.configUrl || payload.configUrl !== configured.configUrl) return null;
 
     var current = new URL(window.location.href);
     var target = new URL(payload.configUrl);
@@ -55,10 +56,11 @@ if (!(chrome && chrome.storage && chrome.storage.local)) {
 
   deliverPendingImport(6);
 
-  window.addEventListener('message', function(event) {
+  window.addEventListener('message', async function(event) {
     if (event.source !== window) return;
     var data = event.data;
-    if (!data || data.source !== 'smarttools-open-tabs-page') return;
+    if (!data || data.source !== 'smarttools-open-tabs-page' || event.origin !== location.origin) return;
+    if (!await getPendingPayloadForCurrentPage()) return;
     if (data.action === 'pending-received') {
       chrome.storage.local.remove('pendingOpenTabsImport');
       return;

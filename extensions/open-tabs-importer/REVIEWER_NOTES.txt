@@ -1,35 +1,33 @@
-## Reviewer Notes
+Reviewer Notes — SmartTools Tabs Importer 1.2.0
 
-### Extension Purpose
-SmartTools Tabs Importer lets users import their open Chrome/Edge tabs into their personal SmartTools bookmark manager. SmartTools is self-hosted — every user deploys it to their own domain, so we cannot hardcode a specific domain in the manifest.
+Purpose: import open tabs to a self-hosted SmartTools backend, and manage that site's bookmarks/groups in a local extension page. Single existing administrator; not a Chrome native-bookmark manager or a new-tab override.
 
-### Why <all_urls> Is Necessary
+Setup:
+1. Use a SmartTools instance with /api/data?format=structured and baseEtag save support.
+2. Configure the HTTPS /config.html URL in the popup or management page.
+3. Approve the runtime permission for that origin only.
+4. Open the bookmark management homepage and sign in with that instance's admin account (or reuse its browser session).
+5. Test groups/cards/subcards, explicit cloud save, and logout. Do not use real Private data for review.
+6. Test current-page and window imports. They still open website confirmation; no auto-save.
 
-This extension requires `<all_urls>` host permission for ONE specific technical reason: **auto-delivery of tab data to the user's own SmartTools instance, which may be hosted at any domain.**
+Permissions: tabs, scripting, storage, contextMenus; optional HTTP(S) host ranges for self-hosted domains. No required <all_urls>, no all-pages static content script, no cookies/bookmarks/history permissions. Dynamic content scripts match only the configured backend path. The claim in older reviewer notes that runtime permission cannot support injection was incorrect.
 
-How it works:
-1. User saves their SmartTools config page URL (e.g., `https://smarttools-xxx.pages.dev/config.html`) in the extension popup.
-2. When the user clicks "Import", the extension reads open tab titles and URLs (using `tabs` API).
-3. If the SmartTools config page is already open, the extension injects the tab data into it via `chrome.scripting.executeScript` + `window.postMessage`.
-4. If the config page is NOT open, the extension opens it and then uses `tabs.onUpdated` to detect when it loads, then injects.
+Authentication: credentials are submitted only to the configured instance. Browser-managed HttpOnly/Secure/SameSite=Strict cookies; no direct cookie access or password/token storage. Logout affects the same site's web session. Third-party cookie policy may prevent extension login; use the website backend rather than weakening cookie flags.
 
-**Step 4 is why `<all_urls>` is needed**: the `tabs.onUpdated` listener in the background script fires for ALL tab URL changes. Without `<all_urls>`, Chrome blocks the listener from receiving URLs for sites not declared in `host_permissions`.
+Storage: configured URL in sync storage (may sync with the browser account); pending tab import in local storage until acknowledgement. Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the homepage and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory. Images may contact image hosts selected by the bookmark owner; destination pages open only when clicked. No analytics.
 
-### What <all_urls> Actually Does in This Extension
+Private is access control, NOT encryption. KV writes are eventually consistent; ETag checking detects observed stale saves but is not atomic locking. A conflict retains the draft and never retries as a full overwrite.
 
-- The content script (`pending-import.js`) is injected into all pages but ONLY performs work on the user's own SmartTools config page (it checks `chrome.storage.local` and bails out immediately on non-matching origins).
-- The extension does NOT read, scrape, or collect any data from third-party websites.
-- All data (tab titles/URLs) stays in the user's browser and goes only to their own SmartTools instance.
-- No network requests are made to any server outside the user's control.
+Manual checks: approve/deny/revoke native site permission; switch configured sites; session expiry; strict third-party cookie policy; import with backend closed. Automated headless extension acceptance pregrants only a loopback origin in a temporary manifest; it does not certify the native permission prompt.
 
-### Alternative Considered and Rejected
-We cannot restrict to a fixed domain or domain pattern because SmartTools is user-deployed to arbitrary domains. Requiring users to manually paste tab data would make the extension nearly useless for its core purpose.
+Additional checks: native page/link/action menu → group → standalone/existing expandable parent; duplicate URL skipped; destination changed/Private transition rejected; badge/popup feedback on unauthenticated capture; restart/offline/logout retain Private; clear current/all sites; drafts are not cached; no automatic retry/polling. Review only with synthetic data.
 
-### Privacy
-This extension:
-- Does not collect or transmit any personal data to third parties
-- Does not use analytics or tracking
-- Does not access cookies, passwords, or browsing history
-- Stores only the user's SmartTools URL in local browser storage
+Built-in browsing / reorganized manager:
+- Popup "打开主页" opens start.html; "书签管理" opens home.html. They reuse separate extension tabs, never override new tabs.
+- Browsing uses local search and a category/icon desktop; hidden groups are omitted, cached Private remains visible after logout. Child links open in a single-level folder popover. Manager defaults to a light list and right-side editor with Apply-to-draft, explicit cloud Save and Discard.
+- Both pages use the same confirmed cache. Unsaved manager edits do not appear in start.html. start.html additionally has version-checked save access, but cannot initialize static data. Exact page URLs and action allowlists reject content scripts and unknown actions.
+- No additional permissions. All scripts/styles/UI icons are local; the desktop uses system fonts and the existing Fjalla One resource is retained; font license in fonts/OFL.txt. No reference product branding or screenshots are shipped.
+- Run npm run test:extension against isolated local Pages for dual-page and responsive acceptance. Native OS menu/permission prompts still require manual verification.
 
-A full permission justification document is available at: [link to PERMISSION_JUSTIFICATION.md in your repo]
+Icon-desktop homepage update:
+start.html now offers category navigation, single-level folder popovers, local search, context/keyboard menus and left-button drag ordering/movement. Each page owns independent unsaved memory drafts; only explicit cloud saves update shared IndexedDB. Search disables dragging; folders cannot nest. Static/no-KV data is read-only here; home.html alone confirms initialization. Exact page/action checks deny query-string lookalikes and popup saves. Source/version conflicts retain drafts without retry. No permissions, remote runtime or new-tab override added. Per-origin selected-group keys are UI preferences in local storage, not bookmark content. Test fixtures and reference screenshots are not packaged.

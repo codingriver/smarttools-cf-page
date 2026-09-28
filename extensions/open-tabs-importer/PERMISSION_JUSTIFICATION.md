@@ -1,56 +1,26 @@
-# Permission Justification — SmartTools Open Tabs Importer
+# Permission Justification — SmartTools Tabs Importer 1.2.0
 
-## Why This Extension Needs `<all_urls>`
+SmartTools is self-hosted. The extension imports open tabs and provides an independent bookmark management page for the user's configured SmartTools instance.
 
-### What the Extension Does
+## Required permissions
+- `tabs`: read titles, URLs and favicon URLs when the user imports/copies/exports tabs; locate the configured backend and reuse the extension homepage. No history API is used.
+- `scripting`: deliver the import handshake to the configured backend and dynamically register `pending-import.js` there.
+- `storage`: store the configured URL in `chrome.storage.sync` and pending import payloads in `chrome.storage.local` until acknowledged, plus per-site selected-group UI preferences. No password or authentication token is persisted. Full datasets use extension-origin IndexedDB, NOT chrome.storage.local.
 
-This extension helps users save the current active page or import currently open Chrome/Edge browser tabs into their personal SmartTools bookmark manager. SmartTools is a self-hosted bookmark tool — every user deploys it to their own domain (e.g., `https://smarttools-xxx.pages.dev`, `https://bookmarks.mydomain.com`, or a local deployment).
+- `contextMenus`: show group/card destinations for explicit page/link/toolbar captures. No alarms, unlimitedStorage, bookmarks, cookies or notifications permission.
 
-The critical challenge: **the extension cannot know the user's SmartTools domain in advance** because each user deploys SmartTools to their own hosting.
+## Optional host permissions
 
-### How `<all_urls>` Is Actually Used
+`https://*/*` and `http://*/*` are optional declaration ranges, not blanket grants. A user gesture requests only the configured origin (`origin/*`). Production connections require HTTPS; local HTTP is allowed for testing. There is no required `<all_urls>` and no static all-sites content script. Only the current configured backend path (including `/config` and `/config.html` aliases) receives the dynamically registered script. Previous grants can be revoked in browser extension settings.
 
-The extension has two components that interact with web pages:
+Runtime site permission is supported for both extension-page API requests and scoped script injection. The previous statement that dynamic permission could not support injection was incorrect and no longer applies.
 
-#### 1. Content Script (`pending-import.js`)
-- Injected into all pages because the extension cannot predict which domain the user has deployed SmartTools to.
-- **On non-SmartTools pages**: the script immediately exits without performing any action. It checks `chrome.storage.local` for a pending import; if the current page doesn't match the configured SmartTools domain, it does nothing.
-- **On the SmartTools config page** (`/config.html`): it listens for a `postMessage` from the extension and displays the import confirmation UI. This is the only page where it performs meaningful work.
-- This script has no network access, does not read DOM content, does not collect or transmit any user data from third-party sites.
+## Authentication and management
 
-#### 2. `chrome.scripting.executeScript` (via Popup / Background)
-- Used to inject tab data directly into the SmartTools config page via `window.postMessage`.
-- This is how tab titles and URLs are actually delivered to the user's SmartTools instance.
-- Only targeted at the specific SmartTools tab the user has open.
+Requests originate in the extension service worker through a fixed-purpose RPC restricted to exact page/action allowlists (home.html, start.html, popup.html; only exact start.html/home.html can request authenticated, version-checked saves; only home.html can initialize static data) and target only the configured site's fixed API paths. Login credentials are sent to that site using its existing login endpoint, not to a third-party account service. HttpOnly, Secure, SameSite=Strict session cookies are managed by the browser via `credentials: include`; no `cookies` permission or token copying is used. Private is server-side access control, not encryption.
 
-### What `<all_urls>` Is NOT Used For
+No `bookmarks`, `history`, or `cookies` permission is requested. The extension does not synchronize Chrome bookmarks or replace the new-tab page. Bookmark images may load from configured image URLs, and opening a bookmark contacts its destination; there are no analytics or advertising endpoints.
 
-- ❌ Reading or scraping content from any website
-- ❌ Collecting browsing history
-- ❌ Intercepting network requests
-- ❌ Injecting ads, trackers, or third-party scripts
-- ❌ Accessing cookies, passwords, or credentials from any site
-- ❌ Communicating with any server other than the user's own SmartTools instance
+## Local cache disclosure
 
-### Comparison with Alternative Approaches
-
-We considered these alternatives but they all have significant drawbacks:
-
-| Alternative | Problem |
-|---|---|
-| Require user to enter domain in manifest | Users cannot install from Chrome Web Store with dynamic permissions |
-| Restrict to a specific domain (e.g., `*.pages.dev`) | Blocks users who self-host SmartTools on other domains |
-| Remove auto-delivery, require manual copy/paste | Severely degrades UX for an import tool |
-| Request permission dynamically on first use | Not supported for content script injection; only for API calls |
-
-### Security Notes
-
-- The extension requests the minimum permissions necessary for its import functionality.
-- `tabs` permission is used only to read the active tab or selected tab titles, URLs, and favicon URLs — no browsing history or sensitive data.
-- All imported data stays within the user's own browser and their own SmartTools deployment.
-- The extension does not communicate with any server other than the user's configured SmartTools backend.
-- No data is collected, aggregated, or sent to any third party.
-
-### If You Have Questions
-
-If you have concerns about this permission during review, please reach out — we are happy to provide additional technical detail about why `<all_urls>` is the only feasible approach for a cross-domain import tool where each user controls their own target domain.
+Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the browsing homepage, manager and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory. Content scripts and websites cannot call the full-cache API.
