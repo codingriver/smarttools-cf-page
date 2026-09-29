@@ -3,12 +3,12 @@ export function mountAccount(host) {
   host.innerHTML = `<details id="accountMenu" class="account-menu">
       <summary id="accountTrigger" aria-label="登录与站点设置"><span id="accountAvatar" class="account-avatar" aria-hidden="true" hidden>管</span><span id="accountLabel">登录</span><span aria-hidden="true" class="account-chevron">⌄</span></summary>
       <div class="account-panel" aria-label="账户与缓存设置">
-        <div class="account-heading"><div><strong id="accountTitle">登录 SmartTools</strong><div id="session" class="muted">尚未连接</div></div><button id="logout" type="button" hidden>退出登录</button></div>
+        <div class="account-heading"><div><strong id="accountTitle">登录栖页</strong><div id="session" class="muted">尚未连接</div></div><button id="logout" type="button" hidden>退出登录</button></div>
         <section class="connection" aria-label="站点与登录">
           <form id="loginForm"><label for="username">管理员账号</label><input id="username" autocomplete="username" placeholder="用户名" required><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" placeholder="管理员密码" required><button class="primary">登录</button></form>
           <details id="siteSettings" class="site-settings"><summary>高级设置</summary><div class="site-settings-panel">
             <p class="muted">仅首次连接、更换站点或权限失效时需要配置，日常登录无需重复授权。点击保存地址时自动申请站点访问权限，通过后才保存；拒绝或取消则不保存。</p>
-          <form id="siteForm"><label for="siteUrl">SmartTools 站点</label><input id="siteUrl" type="url" required placeholder="https://your-site/config.html"><button>保存地址</button></form>
+          <form id="siteForm"><label for="siteUrl">服务端地址</label><input id="siteUrl" type="url" required placeholder="https://your-site/config.html"><button>保存地址</button></form>
           </div></details>
         </section>
         <button id="checkConnection" type="button" hidden>检查连接与云端（保留草稿）</button>

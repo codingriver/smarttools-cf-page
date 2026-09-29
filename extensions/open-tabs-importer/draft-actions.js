@@ -33,11 +33,10 @@ export function reorderBefore(items, item, before = null) {
   if ((!before && items.at(-1) === item) || items[items.indexOf(item) + 1] === before) return false;
   items.splice(items.indexOf(item), 1); items.splice(before ? items.indexOf(before) : items.length, 0, item); return true;
 }
-export async function saveDraft(state, remote, allowInitialize = false) {
+export async function saveDraft(state, remote) {
   if (state.connectionIssue) throw new Error('连接异常，请先检查连接与云端；当前草稿保留');
   if (!state.loggedIn || !state.hasKV || !state.etag || !state.dirty) throw new Error('请先登录并加载可写云端版本');
   const initialize = state.source !== 'kv';
-  if (initialize && !allowInitialize) throw new Error('请在书签管理页确认静态数据初始化到 KV');
-  if (initialize && !confirm('将当前静态数据完整初始化到 KV，并切换数据源？')) return null;
+  if (initialize) throw new Error('请在网站完整后台保存到 KV 并切换数据源');
   return remote('save', { sections: state.sections, baseEtag: state.etag, baseSource: state.configured, initialize });
 }

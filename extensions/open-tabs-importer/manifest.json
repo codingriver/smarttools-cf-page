@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SmartTools Tabs Importer",
+  "name": "栖页 · 书签桌面",
   "version": "1.2.0",
-  "description": "Browse your built-in SmartTools homepage, manage bookmarks and groups, sign in, and import open tabs.",
+  "description": "Qiye — Bookmark Desktop: browse and organize bookmarks, save links, and import open tabs into your configured server.",
   "permissions": [
     "tabs",
     "scripting",
@@ -14,7 +14,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Import open tabs to SmartTools",
+    "default_title": "栖页 · 书签桌面",
     "default_popup": "popup.html",
     "default_icon": {
       "48": "icons/48.png",

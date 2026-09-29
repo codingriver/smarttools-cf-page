@@ -116,11 +116,28 @@ assert(extensionPopupJs.includes("importTabs('active')"), 'current-page import b
 const extensionDirectory = path.join(dist, 'extensions/open-tabs-importer');
 const extensionManifest = JSON.parse(await fs.readFile(path.join(extensionDirectory, 'manifest.json'), 'utf8'));
 assert(extensionManifest.version === '1.2.0', 'extension version mismatch');
+assert(extensionManifest.name === '栖页 · 书签桌面', 'extension list brand');
+assert(extensionManifest.action.default_title === '栖页 · 书签桌面', 'toolbar brand');
+assert(extensionPopupHtml.includes('<title>栖页</title>') && extensionPopupHtml.includes('<h1>栖页</h1>'), 'popup brand');
+assert(extensionPopupJs.includes('qiye-tabs-${') && !extensionPopupJs.includes('smarttools-tabs-${'), 'export filename brand');
+assert(extensionPopupJs.includes('<TITLE>栖页书签</TITLE>') && extensionPopupJs.includes('<H1>栖页书签</H1>'), 'bookmark HTML brand');
+for (const [file, expected] of [
+  ['cache-db.js', "const DB_NAME = 'smarttools-confirmed-cache'"],
+  ['client.js', "channel: 'smarttools-client'"],
+  ['site.js', "https://smarttools-4xj.pages.dev/config.html"],
+  ['pending-import.js', "source: 'smarttools-open-tabs-extension'"],
+  ['cache-controller.js', "id: 'smarttools-root', title: '收藏到栖页'"]
+]) assert((await fs.readFile(path.join(extensionDirectory, file), 'utf8')).includes(expected), 'rename compatibility: ' + file);
+
 assert(JSON.stringify(extensionManifest.permissions) === JSON.stringify(['tabs', 'scripting', 'storage', 'contextMenus']), 'extension permission mismatch');
-for (const file of ['start.html', 'start.js', 'start.css', 'draft-actions.js', 'library-editing.js', 'editor-dialog.js', 'desktop-drag.js', 'account-component.js', 'account.css', 'navigation.js', 'view-utils.js', 'fonts/FjallaOne-Regular.ttf', 'fonts/OFL.txt', 'home.html', 'home.js', 'home.css', 'client.js', 'cache-db.js', 'cache-controller.js', 'menu-model.js', 'model.js', 'site.js']) {
+for (const file of ['start.html', 'start.js', 'start.css', 'draft-actions.js', 'library-editing.js', 'editor-dialog.js', 'desktop-drag.js', 'account-component.js', 'account.css', 'navigation.js', 'view-utils.js', 'fonts/FjallaOne-Regular.ttf', 'fonts/OFL.txt', 'client.js', 'cache-db.js', 'cache-controller.js', 'menu-model.js', 'model.js', 'site.js']) {
   assert((await fs.stat(path.join(extensionDirectory, file))).isFile(), `missing local extension resource: ${file}`);
 }
-for (const pageName of ['home', 'start']) {
+for (const obsolete of ['home.html', 'home.js', 'home.css']) {
+  assert(await fs.access(path.join(extensionDirectory, obsolete)).then(() => false, error => error.code === 'ENOENT'), `removed manager resource shipped: ${obsolete}`);
+}
+assert(!extensionPopupHtml.includes('id="openHome"'), 'removed manager entry must not ship');
+for (const pageName of ['start']) {
     const html = await fs.readFile(path.join(extensionDirectory, pageName + '.html'), 'utf8');
     assert(!/<(?:script|iframe)[^>]+(?:src=["']https?:|srcdoc=)/i.test(html), 'no remote executable or embedded website');
     const js = await fs.readFile(path.join(extensionDirectory, pageName + '.js'), 'utf8');

@@ -1,3 +1,4 @@
+import { openExtensionPage } from './navigation.js';
 import { DEFAULT_CONFIG_URL, normalizeConfigUrl, sitePattern } from './site.js';
 import { readSnapshot, writeSnapshot, clearSnapshots, readMenuIndex, writeMenuIndex } from './cache-db.js';
 import { clone, deltaPayload } from './model.js';
@@ -9,7 +10,7 @@ const serial = task => { const result = queue.catch(() => {}).then(task); queue 
 const origin = url => new URL(normalizeConfigUrl(url)).origin;
 const failure = (message, status, details = {}) => Object.assign(new Error(message), { status, ...details });
 const READ_ACTIONS = ['cache.get', 'status.get', 'sync', 'login', 'logout', 'cache.clear'];
-const PAGE_ACTIONS = { 'home.html': [...READ_ACTIONS, 'save'], 'start.html': [...READ_ACTIONS, 'save'], 'popup.html': ['cache.get', 'status.get', 'sync'] };
+const PAGE_ACTIONS = { 'start.html': [...READ_ACTIONS, 'save'], 'popup.html': ['cache.get', 'status.get', 'sync'] };
 export function trustedClient(sender, action = 'cache.get') {
   return sender.id === chrome.runtime.id && Object.entries(PAGE_ACTIONS).some(([page, actions]) => sender.url === chrome.runtime.getURL(page) && actions.includes(action));
 }
@@ -87,14 +88,13 @@ async function sync(configUrl, revision, force) {
   if (data.privateFiltered) { notify('auth', origin(configUrl), { loggedIn: false }); return { loggedIn: false, snapshot: cached || data, warning }; }
   return { loggedIn: true, ...await commit(configUrl, revision, data) };
 }
-async function save(configUrl, revision, message, allowInitialize) {
+async function save(configUrl, revision, message) {
   const latest = await fullData(configUrl, revision, true);
-  if (latest.source !== 'kv' && !allowInitialize) throw failure('请在书签管理页确认静态数据初始化到 KV', 403);
+  if (latest.source !== 'kv' || message.initialize === true) throw failure('请在网站完整后台保存到 KV 并切换数据源，扩展不支持静态初始化', 403);
   if (!latest.hasKV) throw failure('未绑定 KV：当前只读', 400);
   if (latest.dataEtag !== message.baseEtag || latest.configured !== message.baseSource) throw failure('云端数据或数据源已变化，请保留草稿，刷新并核对后再保存', 409);
   if (!Array.isArray(message.sections)) throw failure('无效草稿', 400);
-  if (latest.source !== 'kv' && message.initialize !== true) throw failure('请在管理主页确认静态数据完整初始化到 KV', 409);
-  const payload = latest.source === 'kv' ? deltaPayload(latest.sections, message.sections) : { content: 'var sections = ' + JSON.stringify(message.sections, null, 2) + ';\n' };
+  const payload = deltaPayload(latest.sections, message.sections);
   const result = await request(configUrl, revision, '/api/save', { ...payload, baseEtag: message.baseEtag, baseSource: message.baseSource });
   // A successful server save must not be reported as a failed write just because local caching failed.
   try {
@@ -102,10 +102,7 @@ async function save(configUrl, revision, message, allowInitialize) {
   } catch { return { saved: true, warning: '云端已保存，但本机状态已变化；请刷新核对', snapshot: null }; }
 }
 export async function openHome() {
-  const url = chrome.runtime.getURL('home.html');
-  const tabs = await chrome.tabs.query({ url });
-  if (tabs[0]) { await chrome.tabs.update(tabs[0].id, { active: true }); await chrome.windows.update(tabs[0].windowId, { focused: true }); }
-  else await chrome.tabs.create({ url });
+  return openExtensionPage('start.html');
 }
 async function resultStatus(text, error = false) {
   await chrome.storage.session.set({ captureStatus: { text, error, at: Date.now() } });
@@ -124,7 +121,7 @@ export async function rebuildMenus() {
   const index = { site, entries: {} };
   const contexts = ['page', 'link', 'action'];
   await chrome.contextMenus.removeAll();
-  await createMenu({ id: 'smarttools-root', title: '收藏到 SmartTools', contexts });
+  await createMenu({ id: 'smarttools-root', title: '收藏到栖页', contexts });
   for (const [g, group] of menuTargets(snapshot).entries()) {
     const parentId = `${revision}-g${g}`;
     await createMenu({ id: parentId, parentId: 'smarttools-root', title: group.title, contexts });
@@ -136,7 +133,7 @@ export async function rebuildMenus() {
   }
   if (!snapshot) await createMenu({ id: 'smarttools-load', parentId: 'smarttools-root', title: '登录／加载收藏位置', contexts });
   await createMenu({ id: 'smarttools-refresh', parentId: 'smarttools-root', title: '刷新收藏位置', contexts });
-  await createMenu({ id: 'smarttools-home', parentId: 'smarttools-root', title: '打开书签管理／登录', contexts });
+  await createMenu({ id: 'smarttools-home', parentId: 'smarttools-root', title: '打开扩展主页／登录', contexts });
   await writeMenuIndex(index);
 }
 export function handleMenuClick(info, tab) {
@@ -159,7 +156,7 @@ export function handleMenuClick(info, tab) {
     const item = captureItem(info, tab);
     const latest = await fullData(configUrl, revision, true);
     if (!latest.hasKV) throw failure('未绑定 KV：不能收藏', 400);
-    if (latest.source !== 'kv') throw failure('请先在管理主页确认静态数据初始化到 KV', 409);
+    if (latest.source !== 'kv') throw failure('请先在网站完整后台保存到 KV 并切换数据源', 409);
     const sections = clone(latest.sections);
     if (!appendCapture(sections, target, item, index.site, crypto.randomUUID())) {
       const result = await commit(configUrl, revision, latest);
@@ -169,8 +166,8 @@ export function handleMenuClick(info, tab) {
     let warning;
     try { ({ warning } = await commit(configUrl, revision, { ...latest, sections, dataEtag: result.dataEtag, dataVersion: result.dataVersion })); }
     catch { warning = '本机状态已变化，请刷新核对'; }
-    await resultStatus(warning ? `云端已收藏；${warning}` : '已收藏到 SmartTools', !!warning);
-  }).catch(error => resultStatus(error.message || '收藏失败，请打开管理主页检查', true));
+    await resultStatus(warning ? `云端已收藏；${warning}` : '已收藏到栖页', !!warning);
+  }).catch(error => resultStatus(error.message || '收藏失败，请打开扩展主页检查', true));
 }
 export function dispatch(message, sender = {}) {
   // Invalidate in-flight responses immediately, then perform the actual delete in queue order.
@@ -198,7 +195,7 @@ export function dispatch(message, sender = {}) {
         notify('auth', origin(configUrl), { loggedIn: false });
         await request(configUrl, revision, '/api/logout', {});
         return { loggedIn: false, snapshot: await readSnapshot(origin(configUrl)) };
-      case 'save': return save(configUrl, revision, message, sender.url === chrome.runtime.getURL('home.html'));
+      case 'save': return save(configUrl, revision, message);
       case 'cache.clear':
         await clearSnapshots(message.all === true ? null : origin(configUrl));
         notify('cleared', message.all === true ? null : origin(configUrl));
@@ -216,7 +213,7 @@ export function initializeClient() {
     return true;
   });
   chrome.contextMenus.onClicked.addListener(handleMenuClick);
-  const rebuild = () => serial(rebuildMenus).catch(() => resultStatus('收藏菜单加载失败，请打开管理主页刷新', true));
+  const rebuild = () => serial(rebuildMenus).catch(() => resultStatus('收藏菜单加载失败，请打开扩展主页刷新', true));
   chrome.runtime.onInstalled.addListener(rebuild);
   chrome.runtime.onStartup.addListener(rebuild);
   chrome.storage.onChanged.addListener((changes, area) => { if (area === 'sync' && changes.configUrl) { epoch++; rebuild(); } });

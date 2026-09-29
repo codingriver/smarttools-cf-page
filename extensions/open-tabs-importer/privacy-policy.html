@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy — SmartTools Open Tabs Importer</title>
+  <title>Privacy Policy — Qiye — Bookmark Desktop</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 60px auto; padding: 0 20px; color: #333; line-height: 1.7; }
     h1 { font-size: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 12px; }
@@ -15,8 +15,8 @@
   </style>
 </head>
 <body>
-  <h1>Privacy Policy — SmartTools Tabs Importer</h1>
-  <p>This extension imports open tabs and provides an independent management page for your own SmartTools bookmarks. It does not replace the new-tab page or manage Chrome's native bookmarks.</p>
+  <h1>Privacy Policy — Qiye — Bookmark Desktop</h1>
+  <p>Qiye (栖页) imports open tabs and provides a built-in bookmark desktop for your own SmartTools bookmarks. It does not replace the new-tab page or manage Chrome's native bookmarks.</p>
   <h2>Data processed</h2>
   <ul>
     <li>When you use the context menu: the chosen page/link URL and page title are sent to your configured SmartTools server after authentication. Existing cached destination names, including Private, appear in menus.</li>
@@ -25,7 +25,7 @@
     <li>When browsing or editing: that site's bookmark and group data, including Private groups for an authenticated administrator. Cloud saves write to your own SmartTools server.</li>
   </ul>
   <h2>Browser storage</h2>
-  <p>The configured site URL is stored in chrome.storage.sync and may synchronize with your browser account if browser sync is enabled. The last selected group key per site is a local interface preference in chrome.storage.local (not bookmark content). Pending tab imports are temporarily stored in chrome.storage.local until the website acknowledges them. Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the browsing homepage, manager and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory.</p>
+  <p>The configured site URL is stored in chrome.storage.sync and may synchronize with your browser account if browser sync is enabled. The last selected group key per site is a local interface preference in chrome.storage.local (not bookmark content). Pending tab imports are temporarily stored in chrome.storage.local until the website acknowledges them. Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the homepage and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory.</p>
   <p>The browser manages the site's HttpOnly, Secure, SameSite=Strict login cookie. The extension cannot read that cookie and has no cookies permission. Logout affects that site's session in the same browser profile. Private is server-side access control, not encryption.</p>
   <h2>Site access and network requests</h2>
   <p>The extension requests access to the site you configure, on demand. It no longer requires an all-sites grant or injects a script into every webpage. Management API requests go to the configured SmartTools site. The import script is dynamically registered only on its configuration page.</p>

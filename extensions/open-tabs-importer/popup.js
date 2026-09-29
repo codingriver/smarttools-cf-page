@@ -12,7 +12,6 @@ const els = {
   configUrl: requireElement('configUrl'),
   saveUrl: requireElement('saveUrl'),
   openBackend: requireElement('openBackend'),
-  openHome: requireElement('openHome'),
   importActive: requireElement('importActive'),
   importCurrent: requireElement('importCurrent'),
   importAll: requireElement('importAll'),
@@ -60,21 +59,12 @@ async function openBackend() {
   await chrome.storage.sync.set({ configUrl });
   els.configUrl.value = configUrl;
   await chrome.tabs.create({ url: configUrl, active: true });
-  setStatus('已打开 SmartTools 后台', 'ok');
+  setStatus('已打开 网站后台', 'ok');
 }
 
-async function openHome(page = 'home.html') {
-  let configUrl;
-  try {
-    configUrl = normalizeConfigUrl(els.configUrl.value || await getConfigUrl());
-  } catch (e) {
-    setStatus('请先填写正确的后台地址', 'err');
-    return;
-  }
-  await chrome.storage.sync.set({ configUrl });
-  els.configUrl.value = configUrl;
-  await openExtensionPage(page);
-  setStatus(page === 'start.html' ? '已打开浏览主页' : '已打开书签管理', 'ok');
+async function openHome() {
+  await openExtensionPage('start.html');
+  setStatus('已打开浏览主页', 'ok');
 }
 
 function sameConfigPage(tabUrl, configUrl) {
@@ -144,12 +134,12 @@ async function collectTabs(scope, configUrl) {
 function importStatusMessage(scope, tabsLength, pending) {
   if (scope === 'active') {
     return pending
-      ? '已打开 SmartTools 后台，并准备收藏当前页'
-      : '已发送当前页到 SmartTools 后台';
+      ? '已打开 网站后台，并准备收藏当前页'
+      : '已发送当前页到 网站后台';
   }
   return pending
-    ? `已打开 SmartTools 后台，并准备导入 ${tabsLength} 个标签`
-    : `已发送 ${tabsLength} 个标签到 SmartTools 后台`;
+    ? `已打开 网站后台，并准备导入 ${tabsLength} 个标签`
+    : `已发送 ${tabsLength} 个标签到 网站后台`;
 }
 
 async function findConfigTab(configUrl) {
@@ -308,13 +298,14 @@ async function exportTabsToFile(scope) {
   }
 
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
-  const filename = `smarttools-tabs-${scope === 'current' ? 'current' : 'all'}-${timestamp}.html`;
+  const filename = `qiye-tabs-${scope === 'current' ? 'current' : 'all'}-${timestamp}.html`;
 
   const html = [
     '<!DOCTYPE NETSCAPE-Bookmark-file-1>',
-    '<!-- SmartTools Tabs Export -->',
-    '<TITLE>SmartTools Tabs</TITLE>',
-    '<H1>SmartTools Tabs</H1>',
+    '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
+    '<!-- Qiye Tabs Export -->',
+    '<TITLE>栖页书签</TITLE>',
+    '<H1>栖页书签</H1>',
     '<DL><p>',
     ...tabs.map(tab => {
       const escapedTitle = escapeHtml(tab.title || tab.url || '');
@@ -360,7 +351,7 @@ async function exportTabsToJsonFile(scope) {
   }
 
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
-  const filename = `smarttools-tabs-${scope === 'current' ? 'current' : 'all'}-${timestamp}.json`;
+  const filename = `qiye-tabs-${scope === 'current' ? 'current' : 'all'}-${timestamp}.json`;
   const json = JSON.stringify(tabs, null, 2);
   const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -385,8 +376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   catch (error) { els.configUrl.value = DEFAULT_CONFIG_URL; setStatus(error.message, 'err'); }
   els.saveUrl.addEventListener('click', saveConfigUrl);
   els.openBackend.addEventListener('click', openBackend);
-  els.openHome.addEventListener('click', () => openHome());
-  requireElement('openStart').addEventListener('click', () => openHome('start.html'));
+  requireElement('openStart').addEventListener('click', () => openHome());
   els.importActive.addEventListener('click', () => importTabs('active'));
   els.importCurrent.addEventListener('click', () => importTabs('current'));
   els.importAll.addEventListener('click', () => importTabs('all'));

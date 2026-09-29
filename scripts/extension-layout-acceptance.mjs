@@ -4,10 +4,10 @@ import { readFile, mkdir } from 'node:fs/promises';
 
 // Synthetic UI fixture: execute the real disclosure/render module, without RPC or private data.
 const root = 'extensions/open-tabs-importer/';
-const html = (await readFile(root + 'home.html', 'utf8'))
+const html = (await readFile(root + 'start.html', 'utf8'))
   .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '')
-  .replace('<link rel="stylesheet" href="home.css">', '');
-const css = await readFile(root + 'home.css', 'utf8') + await readFile(root + 'account.css', 'utf8');
+  .replace('<link rel="stylesheet" href="start.css">', '');
+const css = await readFile(root + 'start.css', 'utf8') + await readFile(root + 'account.css', 'utf8');
 const browser = await chromium.launch({ executablePath: process.env.EXTENSION_CHROME_PATH || chromium.executablePath(), headless: true });
 try {
   const page = await browser.newPage();
@@ -21,6 +21,19 @@ try {
   await mkdir('.wrangler/extension-layout', { recursive: true });
   for (const width of [1280, 1047, 820, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.title(), '栖页 · 书签桌面');
+    assert.equal(await page.locator('.brand').innerText(), '栖');
+    assert.equal(await page.locator('.brand').getAttribute('aria-label'), '栖页主页');
+    assert.equal((await page.locator('.app-name').textContent()).trim(), '栖页 / 书签桌面');
+    // The synthetic fixture has no navigation controller; expose the real mobile sidebar for layout/focus checks.
+    await page.locator('#sidebar').evaluate(el => el.classList.add('open'));
+    await page.keyboard.press('Tab');
+    await page.locator('.brand').focus();
+    assert(await page.locator('.brand').evaluate(el => el === document.activeElement && el.matches(':focus-visible')));
+    const brand = await page.locator('.brand').boundingBox();
+    const sidebar = await page.locator('#sidebar').boundingBox();
+    assert(brand.x >= 0 && brand.x + brand.width <= sidebar.x + sidebar.width, 'brand fits sidebar at ' + width);
+    await page.locator('#sidebar').evaluate(el => el.classList.remove('open'));
     for (const loggedIn of [true, false]) {
       await page.evaluate(loggedIn => {
         window.renderFixture(loggedIn);
@@ -29,9 +42,11 @@ try {
       }, loggedIn);
       assert.equal(await page.locator('#siteForm').isVisible(), false, 'forms start collapsed');
       assert.equal(await page.locator('#accountLabel').innerText(), loggedIn ? '管理员' : '登录');
+      assert.equal(await page.locator('#accountTitle').textContent(), loggedIn ? '账户信息' : '登录栖页');
+      assert.equal(await page.locator('label[for=siteUrl]').textContent(), '服务端地址');
       assert.equal(await page.locator('#accountAvatar').isVisible(), loggedIn);
       const trigger = await page.locator('#accountTrigger').boundingBox();
-      assert(trigger.x + trigger.width > width - 30, 'account entry is at the right edge');
+      assert(trigger.x + trigger.width > width - 45, 'account entry is at the right edge');
       await page.locator('#accountTrigger').focus();
       await page.keyboard.press('Enter');
       assert.equal(await page.locator('#siteUrl').isVisible(), false, 'site setup is hidden even when account is open');
@@ -51,11 +66,11 @@ try {
       assert(await page.locator('#accountMenu').evaluate(menu => menu.open), 'inside button click keeps popover open');
       await page.locator('.cache-panel p').click();
       assert(await page.locator('#accountMenu').evaluate(menu => menu.open), 'inside text click keeps popover open');
-      if ([1047, 390].includes(width)) {
+      if ([1047, 390, 320].includes(width)) {
         await page.screenshot({ path: `.wrangler/extension-layout/${width}-${loggedIn ? 'account' : 'login'}.png` });
       }
       if (!loggedIn) await page.locator('#password').fill('unsent-fixture-only');
-      await page.locator('header').click({ position: { x: 5, y: 5 } });
+      await page.locator('.topbar').click({ position: { x: 5, y: 5 } });
       assert.equal(await page.locator('#siteForm').isVisible(), false, 'outside blank click closes popover');
       await page.waitForFunction(() => !document.querySelector('.cache-menu').open && !document.querySelector('#siteSettings').open && document.querySelector('#password').value === '');
       await page.locator('#accountTrigger').click();

@@ -83,12 +83,16 @@ async function click(menuItemId, url, link = false) {
 try {
   await launch();
   await worker.evaluate(configUrl => chrome.storage.sync.set({ configUrl }), base + '/config.html');
-  page = await context.newPage(); await page.goto(`chrome-extension://${id}/home.html`);
-  await page.locator('.group').filter({ hasText: 'Public cache fixture' }).waitFor();
+  page = await context.newPage(); await page.goto(`chrome-extension://${id}/start.html`);
+  await page.locator('.nav-group').filter({ hasText: 'Public cache fixture' }).waitFor();
   assert.equal(await rpc('cache.get'), null);
+  const tabsBeforeMenu = context.pages().length;
+  for (const menuItemId of ['smarttools-load', 'smarttools-home']) await worker.evaluate(menuItemId => testCache.handleMenuClick({ menuItemId }, {}), menuItemId);
+  assert.equal(context.pages().length, tabsBeforeMenu, 'both native menu entries reuse the homepage');
   await worker.evaluate(() => chrome.contextMenus.update('smarttools-root', { enabled: true }));
   await rpc('login', { username, password });
-  await page.locator('.group').filter({ hasText: 'Private cache fixture' }).waitFor();
+  await page.locator('.nav-group').filter({ hasText: 'Visible private fixture' }).waitFor();
+  assert.equal(await page.locator('.nav-group').filter({ hasText: 'Private cache fixture' }).count(), 0);
   assert.equal((await rpc('cache.get')).sections[1].private, true);
   const leaked = await worker.evaluate(async () => JSON.stringify({ local: await chrome.storage.local.get(null), sync: await chrome.storage.sync.get(null), session: await chrome.storage.session.get(null) }));
   assert(!leaked.includes('Synthetic Private card'));
@@ -99,22 +103,22 @@ try {
   await browsing.getByRole('link', { name: 'Offline Private start fixture', exact: true }).waitFor();
   await browsing.getByRole('button', { name: 'Public cache fixture', exact: true }).click();
   // A second real home sees shared updates, but its unsaved draft is never cached.
-  const second = await context.newPage(); await second.goto(`chrome-extension://${id}/home.html`);
+  const second = await context.newPage(); await second.goto(`chrome-extension://${id}/start.html`);
   await second.locator('#addGroup:not([disabled])').waitFor();
-  await second.locator('.group').filter({ hasText: 'Public cache fixture' }).click(); await second.locator('.group-menu > summary').click();
-  await second.getByRole('button', { name: '编辑分组', exact: true }).click(); await second.locator('[name=label]').fill('Unsaved local draft'); await second.locator('#editForm button[type=submit]').click();
+  await second.locator('.nav-group').filter({ hasText: 'Public cache fixture' }).click(); await second.locator('#groupMore').click();
+  await second.getByRole('menuitem', { name: '编辑分组', exact: true }).click(); await second.locator('[name=label]').fill('Unsaved local draft'); await second.locator('#editForm button[type=submit]').click();
   assert(!(await rpc('cache.get')).sections.some(s => s.label === 'Unsaved local draft'));
   assert.equal(await browsing.locator('h2').filter({ hasText: 'Unsaved local draft' }).count(), 0);
   let result = await click(await targetId(), 'https://example.invalid/capture?q=1#x'); assert.equal(result.error, false);
   await page.getByRole('link', { name: 'Capture fixture', exact: true }).waitFor();
   await browsing.locator('.tile-title').filter({ hasText: 'Capture fixture' }).waitFor();
-  await second.locator('#status').filter({ hasText: '当前草稿保留' }).waitFor();
+  await second.locator('#status').filter({ hasText: '草稿保留' }).waitFor();
   assert.equal(await second.locator('h1').innerText(), 'Unsaved local draft');
   await second.locator('#save').click(); await second.locator('#status.error').filter({ hasText: '云端数据或数据源已变化' }).waitFor();
   assert.equal((await cloud()).sections[0].label, 'Public cache fixture');
   second.once('dialog', d => d.accept()); await second.close({ runBeforeUnload: true });
   result = await click(await targetId(), 'https://example.invalid/capture?q=1#x'); assert.match(result.text, /已跳过/);
-  result = await click(await targetId('public', 'parent'), 'https://example.invalid/link', true); assert.equal(result.error, false);
+  result = await click(await targetId('public', 'parent'), 'https://example.invalid/link', true); assert.equal(result.error, false); assert.equal(result.text, '已收藏到栖页');
   assert.equal((await cloud()).sections[0].cards.find(c => c.id === 'parent').subCards[0].content, 'https://example.invalid/link');
   // Two queued clicks on one menu revision both complete, without lost writes.
   const standalone = await targetId();
@@ -134,7 +138,8 @@ try {
     return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => chrome.runtime.sendMessage({ channel: 'smarttools-client', action: 'cache.get' }) }))[0].result;
   }, base + '/config.html');
   assert.equal(denied.status, 403);
-  assert.equal(await worker.evaluate(() => testCache.trustedClient({ id: chrome.runtime.id, url: 'https://example.invalid/home.html' })), false);
+  assert.equal(await worker.evaluate(() => testCache.trustedClient({ id: chrome.runtime.id, url: 'https://example.invalid/start.html' })), false);
+  for (const action of ['cache.get', 'login', 'save']) assert.equal(await worker.evaluate(action => testCache.trustedClient({ id: chrome.runtime.id, url: chrome.runtime.getURL('home.html') }, action), action), false, 'removed manager has no RPC access');
   await webPage.close();
   // Storage failure aborts only the cache transaction, not the acknowledged cloud write.
   const oldEtag = (await rpc('cache.get')).dataEtag;
@@ -178,8 +183,9 @@ try {
   await launch(); await context.setOffline(true);
   // CDP offline emulation does not consistently apply to extension service-worker targets.
   await worker.evaluate(() => { globalThis.onlineFetch = fetch; globalThis.fetch = async () => { throw new TypeError('Synthetic disconnected extension worker'); }; });
-  page = await context.newPage(); await page.goto(`chrome-extension://${id}/home.html`);
-  await page.locator('.group').filter({ hasText: 'Private cache fixture' }).waitFor();
+  page = await context.newPage(); await page.goto(`chrome-extension://${id}/start.html`);
+  await page.locator('.nav-group').filter({ hasText: 'Visible private fixture' }).waitFor();
+  assert.equal(await page.locator('.nav-group').filter({ hasText: 'Private cache fixture' }).count(), 0);
   await page.locator('#status.error').waitFor(); assert(await page.locator('#save').isDisabled());
   const restartedStart = await context.newPage(); await restartedStart.goto(`chrome-extension://${id}/start.html`);
   await restartedStart.getByRole('button', { name: 'Visible private fixture · Private', exact: true }).click();
@@ -227,7 +233,7 @@ try {
   assert.equal(await rpc('cache.get'), null);
   assert.equal(await worker.evaluate(async site => testCache.readSnapshot(site), other), null);
   assert.equal(Object.keys(await worker.evaluate(async () => (await testCache.readMenuIndex()).entries)).length, 0);
-  await page.waitForFunction(() => document.querySelectorAll('.group').length === 0);
+  await page.waitForFunction(() => document.querySelectorAll('.nav-group').length === 0);
   console.log(JSON.stringify({ ok: true, realMV3: true, sharedIndexedDB: true, restartOfflinePrivate: true, logoutReadOnly: true, draftsIsolated: true, metaAvoidsFullDownload: true, menuPageLinkParentDuplicateSerialCapture: true, stableTargets: true, contentScriptDenied: true, storageFailureAndCorruption: true, staticNoKVAuthAndConflictGuards: true, multiSiteAndClearRace: true, nativeMenuAndPermissionPrompt: 'manual not automated', artifactDirectory: directory }, null, 2));
 } finally { await context?.close(); }
 

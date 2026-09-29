@@ -8,7 +8,7 @@ export function bindDesktopDrag({ state, editable, searching, resolve, changed, 
     const node = event.target.closest('[data-ref]'); const ref = resolve(node);
     if (!ref || !editable() || searching() || node.draggable !== true) { event.preventDefault(); return; }
     source = ref; node.classList.add('drag-source'); document.body.classList.add('dragging');
-    event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'SmartTools internal draft');
+    event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'Qiye internal draft');
   });
   document.addEventListener('dragover', event => {
     if (!source) return;

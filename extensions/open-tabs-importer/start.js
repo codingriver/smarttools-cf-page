@@ -8,7 +8,6 @@ import { createEditing } from './library-editing.js';
 import { createEditor } from './editor-dialog.js';
 import { bindDesktopDrag } from './desktop-drag.js';
 import { client, applyClientError, sessionLabel } from './client.js';
-import { openExtensionPage } from './navigation.js';
 import { DEFAULT_CONFIG_URL, normalizeConfigUrl, authorizeSite, sitePattern } from './site.js';
 const $ = id => document.getElementById(id);
 mountAccount($('accountHost')); bindCacheMenu($('accountMenu')); mountIcons();
@@ -34,7 +33,8 @@ function selectGroup(section) {
 }
 function sidebar(open) { $('sidebar').classList.toggle('open', open); $('openSidebar').setAttribute('aria-expanded', String(open)); }
 function refNode(node, ref, drop = false) {
-  const object = ref.card || ref.section;
+  // Folder contents and the desktop are separate drop containers even in the same section.
+  const object = ref.card || ref.parent || ref.section;
   if (!identities.has(object)) identities.set(object, String(++identity));
   const key = identities.get(object) + (drop ? '-drop' : ''); refs.set(key, ref);
   node.dataset[drop ? 'drop' : 'ref'] = key;
@@ -77,7 +77,7 @@ function cardActions(section, card, parent) {
   actions.push(['↑ 前移', () => { if (reorder(items, i, -1)) changed(); }, locked || i === 0], ['↓ 后移', () => { if (reorder(items, i, 1)) changed(); }, locked || i === items.length - 1], ['删除', () => editing.deleteCard(section, card, parent), locked, true]); return actions;
 }
 function newActions(s = current()) {
-  return [['新增书签', () => editing.editCard(s), !editable() || (s && s.kind !== 'card')], ['新建文件夹', () => editing.editCard(s, null, null, true), !editable() || (s && s.kind !== 'card')], ['新建分组', () => editing.editGroup(), !editable()], ['打开书签管理', () => openExtensionPage('home.html')]];
+  return [['新增书签', () => editing.editCard(s), !editable() || (s && s.kind !== 'card')], ['新建文件夹', () => editing.editCard(s, null, null, true), !editable() || (s && s.kind !== 'card')], ['新建分组', () => editing.editGroup(), !editable()], ['打开网站完整后台', () => openUrl(state.configUrl)]];
 }
 function moreButton(label, actions) {
   const more = el('button', null, 'tile-more'); more.type = 'button'; more.append(icon('more')); more.setAttribute('aria-label', label); more.title = label;
@@ -146,8 +146,8 @@ function render() {
     }
   } else if (selected) { for (const card of selected.cards) { grid.append(tile(selected, card)); count++; } refNode(grid, { section: selected }, true); }
   if (!count) {
-    const empty = el('section', null, 'empty-state'); empty.append(el('h2', q ? '没有找到书签' : selected ? '从一条好链接开始' : '你的书签，从这里开始'), el('p', q ? '试试标题、地址或子书签名称；隐藏分组仅在管理页显示。' : !state.etag ? '连接你的 SmartTools 站点，登录后加载完整书签。' : '在此整理常用书签，也可以到管理页查看隐藏分组。'));
-    empty.append(btn(q ? '清除搜索' : editable() ? '新增书签' : state.etag ? '打开书签管理' : '连接站点 / 登录', () => { if (q) { $('search').value = ''; render(); } else if (editable()) editing.editCard(selected); else if (state.etag) return openExtensionPage('home.html'); else { $('accountMenu').open = true; $('siteUrl').focus(); } })); grid.append(empty);
+    const empty = el('section', null, 'empty-state'); empty.append(el('h2', q ? '没有找到书签' : selected ? '从一条好链接开始' : '你的书签，从这里开始'), el('p', q ? '试试标题、地址或子书签名称；隐藏分组可在网站完整后台查看。' : !state.etag ? '连接你的书签站点，登录后加载完整书签。' : '在此整理常用书签，隐藏分组请到网站完整后台查看和恢复显示。'));
+    empty.append(btn(q ? '清除搜索' : editable() ? '新增书签' : state.etag ? '打开网站完整后台' : '连接站点 / 登录', () => { if (q) { $('search').value = ''; render(); } else if (editable()) editing.editCard(selected); else if (state.etag) return openUrl(state.configUrl); else { $('accountMenu').open = true; $('siteSettings').open = true; $('siteUrl').focus(); } })); grid.append(empty);
   }
   if (!q && selected?.kind === 'card' && editable()) {
     const add = el('article', null, 'tile tile-add'); const main = btn(null, () => showMenu(newActions(), null, main), false, 'tile-main'); const mark = el('span', null, 'tile-mark'); mark.append(icon('plus')); main.append(mark, el('span', '添加', 'tile-title')); add.append(main); grid.append(add);
@@ -168,7 +168,7 @@ async function sync(force = false, action = 'sync', extra = {}) {
   try {
     const result = await remote(action, { force, ...extra }); state.loggedIn = result.loggedIn === true; state.connectionIssue = '';
     if (hasDraft()) status(result.snapshot?.dataEtag !== state.etag ? '云端数据已变化；当前草稿保留，请核对后再保存。' : '当前草稿保留。');
-    else { applySnapshot(result.snapshot); status(result.warning || (!state.hasKV ? '未绑定 KV · 只读浏览' : state.source !== 'kv' ? '静态数据 · 请在书签管理页确认初始化后再整理' : !state.loggedIn ? '未登录 · 浏览本机缓存／公开数据' : '已同步 · 修改后请保存到云端'), !!result.warning); }
+    else { applySnapshot(result.snapshot); status(result.warning || (!state.hasKV ? '未绑定 KV · 只读浏览' : state.source !== 'kv' ? '静态数据 · 请先在网站完整后台保存到 KV 并切换数据源' : !state.loggedIn ? '未登录 · 浏览本机缓存／公开数据' : '已同步 · 修改后请保存到云端'), !!result.warning); }
   } finally { if (generation === state.generation) { state.busy = false; render(); } }
 }
 async function switchSite(configUrl) {
@@ -190,7 +190,6 @@ function clock() { const now = new Date(); $('clock').textContent = now.toLocale
 clock(); setInterval(clock, 30000); // Local clock only; no network polling.
 $('accountTrigger').addEventListener('click', () => { closeFolder(); closeMenu(); sidebar(false); });
 $('search').addEventListener('input', () => { closeMenu(); closeFolder(); render(); });
-for (const id of ['openManager', 'sidebarManager']) $(id).addEventListener('click', () => run(() => openExtensionPage('home.html')));
 $('openSidebar').addEventListener('click', event => { event.stopPropagation(); sidebar(!$('sidebar').classList.contains('open')); });
 $('addGroup').addEventListener('click', () => editing.editGroup());
 $('groupMore').addEventListener('click', event => { if (current()) showMenu(groupActions(current()), event, $('groupMore')); });

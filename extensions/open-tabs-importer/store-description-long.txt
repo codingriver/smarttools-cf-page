@@ -1,4 +1,4 @@
-SmartTools Tabs Importer & Bookmark Manager
+Qiye — Bookmark Desktop (栖页 · 书签桌面)
 
 Save the current page or import open tabs into your own SmartTools instance, and manage its bookmarks from an independent extension homepage.
 
@@ -6,19 +6,19 @@ Features
 - Right-click a page, link or toolbar icon to save into a group or an existing expandable card.
 - Shared long-lived local cache, including Private, readable offline and after logout; separate clear controls.
 - Existing current-page, current-window and all-window imports, clipboard and HTML/JSON exports.
-- Built-in dark icon-desktop homepage with categories and single-level folders and light list-based manager with a right-side editor; neither replaces the browser new-tab page.
+- Built-in dark icon-desktop homepage with categories and single-level folders; it does not replace the browser new-tab page.
 - Sign in with your existing SmartTools administrator account or reuse the site's session.
 - Browse/search bookmarks and groups, manage cards and subcards, move/reorder items, and mark groups Private.
 - Explicit cloud save, unsaved-change reminders and stale-save conflict messages.
 - Keep special card types intact; advanced settings, backup and restore remain in the website backend.
 
 Setup
-Enter your SmartTools HTTPS backend URL, approve access to that site, then open the management homepage. The server must support structured data and version-checked saves. Imports still require confirmation and save in the website backend.
+Enter your SmartTools HTTPS backend URL, approve access to that site, then open the extension homepage. The server must support structured data and version-checked saves. Imports still require confirmation and save in the website backend.
 
 Privacy and permissions
 Required: tabs, scripting, storage, contextMenus. Optional site access is requested only for your configured SmartTools origin; no required all-sites grant or all-page content script. No Chrome native-bookmark synchronization, cookies permission or browsing-history access.
-Credentials go only to your configured SmartTools login endpoint. Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the browsing homepage, manager and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory. The configured site URL uses browser sync storage; pending tab imports use local storage until acknowledgement. Saved bookmarks reside on your own SmartTools server. Images can load from their configured image hosts. No analytics or ads.
+Credentials go only to your configured SmartTools login endpoint. Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the homepage and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory. The configured site URL uses browser sync storage; pending tab imports use local storage until acknowledgement. Saved bookmarks reside on your own SmartTools server. Images can load from their configured image hosts. No analytics or ads.
 
 Private means server-side access control, not encryption. Browser Cookie policies may prevent extension login; you can continue in the website backend. Cloudflare KV is eventually consistent: avoid saving from several clients simultaneously.
 
-Desktop organization: right-click/More/keyboard menus and left-button dragging for ordering and safe cross-group/folder moves. No nested folders. Apply edits to a page-local draft, then explicitly save to cloud; conflicts preserve drafts. Search is local-only. Static initialization requires the separate manager. No additional permissions.
+Desktop organization: right-click/More/keyboard menus and left-button dragging for ordering and safe cross-group/folder moves. No nested folders. Apply edits to a page-local draft, then explicitly save to cloud; conflicts preserve drafts. Search is local-only. Hidden-group management and static initialization use the full website backend. No additional permissions.

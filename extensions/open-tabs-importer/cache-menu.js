@@ -24,7 +24,7 @@ export function renderAccountMenu(menu, { loggedIn, busy, connectionIssue }) {
   find('#checkConnection').disabled = !!busy;
   find('#accountAvatar').hidden = !loggedIn;
   find('#accountLabel').textContent = loggedIn ? '管理员' : '登录';
-  find('#accountTitle').textContent = loggedIn ? '账户信息' : '登录 SmartTools';
+  find('#accountTitle').textContent = loggedIn ? '账户信息' : '登录栖页';
   find('#accountTrigger').setAttribute('aria-label', loggedIn ? '管理员账户与缓存设置' : '登录与站点设置');
   find('#logout').hidden = !loggedIn;
   find('#loginForm').hidden = loggedIn;

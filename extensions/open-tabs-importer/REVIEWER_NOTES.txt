@@ -1,12 +1,12 @@
-Reviewer Notes — SmartTools Tabs Importer 1.2.0
+Reviewer Notes — Qiye — Bookmark Desktop 1.2.0
 
 Purpose: import open tabs to a self-hosted SmartTools backend, and manage that site's bookmarks/groups in a local extension page. Single existing administrator; not a Chrome native-bookmark manager or a new-tab override.
 
 Setup:
 1. Use a SmartTools instance with /api/data?format=structured and baseEtag save support.
-2. Configure the HTTPS /config.html URL in the popup or management page.
+2. Configure the HTTPS /config.html URL in the popup or extension homepage.
 3. Approve the runtime permission for that origin only.
-4. Open the bookmark management homepage and sign in with that instance's admin account (or reuse its browser session).
+4. Open the extension homepage and sign in with that instance's admin account (or reuse its browser session).
 5. Test groups/cards/subcards, explicit cloud save, and logout. Do not use real Private data for review.
 6. Test current-page and window imports. They still open website confirmation; no auto-save.
 
@@ -22,12 +22,10 @@ Manual checks: approve/deny/revoke native site permission; switch configured sit
 
 Additional checks: native page/link/action menu → group → standalone/existing expandable parent; duplicate URL skipped; destination changed/Private transition rejected; badge/popup feedback on unauthenticated capture; restart/offline/logout retain Private; clear current/all sites; drafts are not cached; no automatic retry/polling. Review only with synthetic data.
 
-Built-in browsing / reorganized manager:
-- Popup "打开主页" opens start.html; "书签管理" opens home.html. They reuse separate extension tabs, never override new tabs.
-- Browsing uses local search and a category/icon desktop; hidden groups are omitted, cached Private remains visible after logout. Child links open in a single-level folder popover. Manager defaults to a light list and right-side editor with Apply-to-draft, explicit cloud Save and Discard.
-- Both pages use the same confirmed cache. Unsaved manager edits do not appear in start.html. start.html additionally has version-checked save access, but cannot initialize static data. Exact page URLs and action allowlists reject content scripts and unknown actions.
-- No additional permissions. All scripts/styles/UI icons are local; the desktop uses system fonts and the existing Fjalla One resource is retained; font license in fonts/OFL.txt. No reference product branding or screenshots are shipped.
-- Run npm run test:extension against isolated local Pages for dual-page and responsive acceptance. Native OS menu/permission prompts still require manual verification.
-
-Icon-desktop homepage update:
-start.html now offers category navigation, single-level folder popovers, local search, context/keyboard menus and left-button drag ordering/movement. Each page owns independent unsaved memory drafts; only explicit cloud saves update shared IndexedDB. Search disables dragging; folders cannot nest. Static/no-KV data is read-only here; home.html alone confirms initialization. Exact page/action checks deny query-string lookalikes and popup saves. Source/version conflicts retain drafts without retry. No permissions, remote runtime or new-tab override added. Per-origin selected-group keys are UI preferences in local storage, not bookmark content. Test fixtures and reference screenshots are not packaged.
+Single built-in extension homepage:
+- Popup "打开主页" and native context-menu login/navigation open or reuse start.html. The separate home.html/home.js/home.css manager and its RPC access have been removed; no redirect shell is shipped.
+- Categories, standard icons, single-level folders, local search, context/keyboard menus and left-button drag ordering/movement remain. Hidden groups are omitted; use the unchanged website backend to restore their visibility, browse the full library, back up data or initialize/switch to KV.
+- Each homepage tab has an independent memory draft. Only confirmed cloud saves update the shared IndexedDB cache/context menus; another tab's draft is not overwritten. Closing unapplied inputs requires confirmation.
+- Only exact start.html can request version-checked saves; static/no-KV data is read-only. Old home.html senders, query-string lookalikes, popup and content scripts cannot save. No additional permissions, remote runtime or new-tab override.
+- Save address in collapsed Advanced settings requests site access first; denial/cancellation does not save the address. Opening the homepage alone does not change the configured site.
+- Run npm run test:extension against isolated local Pages for actual MV3, multi-homepage-tab, cache, import and responsive acceptance. Native OS menu/permission prompts still require manual verification. Use synthetic fixtures only.

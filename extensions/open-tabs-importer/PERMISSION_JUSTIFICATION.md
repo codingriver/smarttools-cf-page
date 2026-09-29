@@ -1,4 +1,4 @@
-# Permission Justification — SmartTools Tabs Importer 1.2.0
+# Permission Justification — Qiye — Bookmark Desktop 1.2.0
 
 SmartTools is self-hosted. The extension imports open tabs and provides an independent bookmark management page for the user's configured SmartTools instance.
 
@@ -17,10 +17,10 @@ Runtime site permission is supported for both extension-page API requests and sc
 
 ## Authentication and management
 
-Requests originate in the extension service worker through a fixed-purpose RPC restricted to exact page/action allowlists (home.html, start.html, popup.html; only exact start.html/home.html can request authenticated, version-checked saves; only home.html can initialize static data) and target only the configured site's fixed API paths. Login credentials are sent to that site using its existing login endpoint, not to a third-party account service. HttpOnly, Secure, SameSite=Strict session cookies are managed by the browser via `credentials: include`; no `cookies` permission or token copying is used. Private is server-side access control, not encryption.
+Requests originate in the extension service worker through a fixed-purpose RPC restricted to exact page/action allowlists (start.html, popup.html; only exact start.html can request authenticated, version-checked saves; removed home.html has no access; static initialization must use the website backend) and target only the configured site's fixed API paths. Login credentials are sent to that site using its existing login endpoint, not to a third-party account service. HttpOnly, Secure, SameSite=Strict session cookies are managed by the browser via `credentials: include`; no `cookies` permission or token copying is used. Private is server-side access control, not encryption.
 
 No `bookmarks`, `history`, or `cookies` permission is requested. The extension does not synchronize Chrome bookmarks or replace the new-tab page. Bookmark images may load from configured image URLs, and opening a bookmark contacts its destination; there are no analytics or advertising endpoints.
 
 ## Local cache disclosure
 
-Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the browsing homepage, manager and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory. Content scripts and websites cannot call the full-cache API.
+Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the homepage and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory. Content scripts and websites cannot call the full-cache API.

@@ -1,1 +1,1 @@
-Built-in SmartTools bookmark homepage, list-based manager, right-click capture and open-tab imports.
+Qiye bookmark desktop, editing, right-click capture and open-tab imports.

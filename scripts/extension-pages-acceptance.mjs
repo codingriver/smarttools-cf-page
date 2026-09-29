@@ -45,12 +45,10 @@ try {
   await start.locator('#logout:not([hidden])').waitFor(); await start.getByRole('button', { name: 'Synthetic Private · Private', exact: true }).waitFor();
   assert.equal(await start.locator('.nav-label').filter({ hasText: 'Synthetic hidden' }).count(), 0);
   await start.keyboard.press('Escape');
-  const manager = await context.newPage(); await manager.goto(extension + 'home.html'); await manager.locator('#addGroup:not([disabled])').waitFor();
-  assert(await manager.locator('#cards').evaluate(el => el.classList.contains('list-view')));
+  const peer = await context.newPage(); await peer.goto(extension + 'start.html'); await peer.locator('#addGroup:not([disabled])').waitFor();
   assert.equal(await start.locator('.desktop-sidebar').evaluate(el => getComputedStyle(el).width), '56px');
   assert.equal(await start.locator('.tile-mark').first().evaluate(el => getComputedStyle(el).width), '60px');
-  assert.equal(await manager.locator('.sidebar').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(245, 244, 242)');
-  assert.equal(await manager.locator('.group').filter({ hasText: 'Synthetic hidden' }).count(), 1);
+  assert.equal(await peer.locator('.nav-group').filter({ hasText: 'Synthetic hidden' }).count(), 0);
   const rpc = (page, action, extra = {}) => page.evaluate(({ action, configUrl, extra }) => chrome.runtime.sendMessage({ channel: 'smarttools-client', action, configUrl, ...extra }), { action, configUrl: base + '/config.html', extra });
   assert.equal((await rpc(start, 'save', { sections: [] })).status, 409, 'trusted start reaches version guard');
   assert.equal((await rpc(start, 'unknown')).status, 403, 'unknown action denied before dispatch');
@@ -78,12 +76,40 @@ try {
   };
   assert.equal(await start.locator('a').evaluateAll(nodes => nodes.filter(n => n.protocol === 'javascript:').length), 0);
   await editStart('Developer docs', 'Homepage saved fixture');
-  assert(await manager.getByRole('link', { name: 'Developer docs', exact: true }).isVisible());
+  assert(await peer.getByRole('link', { name: 'Developer docs', exact: true }).isVisible());
   assert.equal((await rpc(start, 'cache.get')).value.sections[0].cards[0].title, 'Developer docs');
   await start.locator('#save').click(); await start.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
-  await manager.getByRole('link', { name: 'Homepage saved fixture', exact: true }).waitFor();
+  await peer.getByRole('link', { name: 'Homepage saved fixture', exact: true }).waitFor();
   await editStart('Homepage saved fixture', 'Developer docs'); await start.locator('#save').click(); await start.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
-  await manager.getByRole('link', { name: 'Developer docs', exact: true }).waitFor();
+  await peer.getByRole('link', { name: 'Developer docs', exact: true }).waitFor();
+  // Regression: an open folder must not replace its section desktop's drop identity.
+  // Drag its only child by the actual link/icon into blank desktop space (not a sidebar button).
+  await tileNamed('Reading list').locator('.tile-main').click();
+  assert.notEqual(await start.locator('#cards').getAttribute('data-drop'), await start.locator('#folderCards').getAttribute('data-drop'));
+  const singleChildBox = await start.locator('#folderCards .tile-main').boundingBox();
+  const desktopBox = await start.locator('#cards').boundingBox();
+  await start.mouse.move(singleChildBox.x + singleChildBox.width / 2, singleChildBox.y + 30); await start.mouse.down();
+  await start.mouse.move(singleChildBox.x + singleChildBox.width / 2 + 20, singleChildBox.y + 35, { steps: 4 });
+  await start.waitForFunction(() => document.body.classList.contains('dragging'));
+  await start.mouse.move(desktopBox.x + desktopBox.width - 5, desktopBox.y + desktopBox.height - 5, { steps: 12 });
+  await start.mouse.move(desktopBox.x + desktopBox.width - 6, desktopBox.y + desktopBox.height - 6); await start.mouse.up();
+  await start.locator('#draftBar:not([hidden])').waitFor();
+  assert(await start.locator('#folderBackdrop').isHidden());
+  assert(await tileNamed('Nested needle').isVisible());
+  const beforeExtractSave = (await rpc(start, 'cache.get')).value;
+  assert.equal(beforeExtractSave.sections[0].cards[1].subCards.length, 1, 'extraction is only a page-local draft');
+  assert.equal(beforeExtractSave.sections[0].cards.some(card => card.id === 'child'), false);
+  await start.waitForTimeout(300); // Suppressed post-drag click must not consume the Save button.
+  await start.locator('#save').click(); await start.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
+  await peer.getByRole('link', { name: 'Nested needle', exact: true }).waitFor();
+  const extracted = (await rpc(start, 'cache.get')).value;
+  assert.equal(extracted.sections[0].cards[1].subCards.length, 0);
+  assert.equal(extracted.sections[0].cards.at(-1).id, 'child');
+  assert.equal(extracted.sections[0].cards[1].url, 'https://example.invalid/reading');
+  // Restore the original fixture through the same UI and explicit save path.
+  await tileNamed('Nested needle').dragTo(tileNamed('Reading list'));
+  await start.waitForTimeout(300); await start.locator('#save').click(); await start.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
+  await peer.getByRole('link', { name: 'Nested needle', exact: true }).waitFor({ state: 'hidden' });
   // Native HTML drag/drop: a leaf enters a folder; folder-on-folder center drop is rejected.
   await tileNamed('Developer docs').dragTo(tileNamed('Reading list'));
   await tileNamed('Reading list').locator('.tile-main').click();
@@ -135,19 +161,17 @@ try {
   assert(await start.locator('#folderCards').getByRole('link', { name: 'Draft child', exact: true }).isVisible());
   await start.keyboard.press('Escape'); start.once('dialog', d => d.accept()); await start.locator('#discard').click();
   assert.equal(await tileNamed('Draft folder').count(), 0);
-  // Drawer close guards and memory-only drafts.
-  await manager.setViewportSize({ width: 1280, height: 900 });
-  const docs = manager.locator('.card').filter({ has: manager.getByRole('link', { name: 'Developer docs', exact: true }) });
-  await docs.locator('.quick-edit').focus(); await manager.keyboard.press('Enter');
-  assert(await manager.locator('#editor').evaluate(el => el.classList.contains('bookmark-editor')));
-  await manager.locator('[name=title]').fill('Unapplied fixture');
-  manager.once('dialog', dialog => dialog.dismiss()); await manager.mouse.click(500, 300); assert(await manager.locator('#editor').isVisible(), 'outside click protects unapplied fields'); manager.once('dialog', dialog => dialog.dismiss()); await manager.keyboard.press('Escape'); assert(await manager.locator('#editor').isVisible());
-  manager.once('dialog', dialog => dialog.accept()); await manager.locator('#cancelEdit').click(); assert(await manager.locator('#editor').isHidden());
-  await docs.locator('.card-actions > summary').click(); await docs.getByRole('button', { name: '编辑', exact: true }).click(); await manager.locator('[name=title]').fill('Saved dual-page fixture'); await manager.locator('#editForm button[type=submit]').click();
+  // A second homepage has its own editor and memory-only draft.
+  const editPeer = async (name, title) => {
+    const tile = peer.locator('#cards .tile').filter({ has: peer.locator('.tile-title').filter({ hasText: new RegExp('^' + name + '$') }) });
+    await tile.locator('.tile-more').click(); await peer.getByRole('menuitem', { name: '编辑', exact: true }).click();
+    await peer.locator('[name=title]').fill(title); await peer.locator('#editForm button[type=submit]').click();
+  };
+  await editPeer('Developer docs', 'Saved dual-page fixture');
   assert.equal(await start.locator('.tile-title').filter({ hasText: 'Saved dual-page fixture' }).count(), 0);
   assert(!(await rpc(start, 'cache.get')).value.sections[0].cards.some(c => c.title === 'Saved dual-page fixture'));
-  assert(await manager.locator('#draftBar').isVisible()); await manager.locator('#save').click(); await manager.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
-  await start.locator('.tile-title').filter({ hasText: 'Saved dual-page fixture' }).waitFor(); assert(await manager.locator('#draftBar').isHidden());
+  assert(await peer.locator('#draftBar').isVisible()); await peer.locator('#save').click(); await peer.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
+  await start.locator('.tile-title').filter({ hasText: 'Saved dual-page fixture' }).waitFor(); assert(await peer.locator('#draftBar').isHidden());
   console.log('Dual-page baseline complete');
   // Regression: rejected/unknown save results never masquerade as logout or discard a draft.
   await worker.evaluate(() => {
@@ -162,14 +186,11 @@ try {
       return failureTestFetch(url, options);
     };
   });
-  for (const page of [start, manager]) {
+  for (const page of [start, peer]) {
     await page.bringToFront(); await page.locator('#refresh').click(); await page.waitForFunction(() => !document.querySelector('#addGroup').disabled);
     if (page === start) await editStart('Saved dual-page fixture', 'Save error draft');
-    else {
-      const card = manager.locator('.card').filter({ has: manager.getByRole('link', { name: 'Saved dual-page fixture', exact: true }) });
-      await card.locator('.quick-edit').click(); await manager.locator('[name=title]').fill('Save error draft'); await manager.locator('#editForm button[type=submit]').click();
-    }
-    console.log('Save error scenarios', page === start ? 'start' : 'manager');
+    else await editPeer('Saved dual-page fixture', 'Save error draft');
+    console.log('Save error scenarios', page === start ? 'start' : 'peer');
     for (const mode of ['503', '403', '500', 'timeout']) {
       await worker.evaluate(mode => { failureMode = mode; failedPostCount = 0; }, mode);
       await page.locator('#save').click(); await page.locator('#status.error').filter({ hasText: '/api/save' }).waitFor();
@@ -195,37 +216,37 @@ try {
   await worker.evaluate(() => { globalThis.fetch = failureTestFetch; });
   start.once('dialog', d => d.accept()); await start.locator('#discard').click(); await start.locator('#refresh').click();
   await start.waitForFunction(() => !document.querySelector('#addGroup').disabled);
-  // Concurrent drafts: a manager save must not overwrite this desktop's draft or baseline.
+  // Concurrent drafts: a peer save must not overwrite this desktop's draft or baseline.
   await editStart('Saved dual-page fixture', 'Desktop conflict draft');
-  const savedCard = manager.locator('.card').filter({ has: manager.getByRole('link', { name: 'Saved dual-page fixture', exact: true }) });
-  await savedCard.locator('.quick-edit').click(); await manager.locator('[name=title]').fill('Newer manager version'); await manager.locator('#editForm button[type=submit]').click();
-  await manager.locator('#save').click(); await manager.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
+  await editPeer('Saved dual-page fixture', 'Newer peer version');
+  await peer.locator('#save').click(); await peer.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
   await start.locator('#status').filter({ hasText: '草稿保留' }).waitFor(); await start.locator('#save').click();
   await start.locator('#status.error').filter({ hasText: '云端数据' }).waitFor();
   assert(await tileNamed('Desktop conflict draft').isVisible()); assert(await start.locator('#draftBar').isVisible());
-  assert.equal((await rpc(start, 'cache.get')).value.sections[0].cards[0].title, 'Newer manager version');
+  assert.equal((await rpc(start, 'cache.get')).value.sections[0].cards[0].title, 'Newer peer version');
   // Offline detection retains local edits but disables modification and cloud writes.
   await worker.evaluate(() => { globalThis.desktopFetch = fetch; globalThis.fetch = async () => { throw new TypeError('Synthetic offline'); }; });
   await rpc(start, 'sync'); await start.waitForFunction(() => document.querySelector('#addGroup').disabled);
   assert(await tileNamed('Desktop conflict draft').isVisible()); assert(await start.locator('#save').isDisabled());
   await worker.evaluate(() => { globalThis.fetch = desktopFetch; }); await rpc(start, 'sync');
   start.once('dialog', d => d.accept()); await start.locator('#discard').click(); await start.locator('#refresh').click();
-  await tileNamed('Newer manager version').waitFor(); await start.waitForFunction(() => !document.querySelector('#addGroup').disabled);
-  await editStart('Newer manager version', 'Saved dual-page fixture'); await start.locator('#save').click(); await start.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
-  await manager.getByRole('link', { name: 'Saved dual-page fixture', exact: true }).waitFor();
-  // A trusted homepage still cannot bypass manager-only static initialization.
+  await tileNamed('Newer peer version').waitFor(); await start.waitForFunction(() => !document.querySelector('#addGroup').disabled);
+  await editStart('Newer peer version', 'Saved dual-page fixture'); await start.locator('#save').click(); await start.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
+  await peer.getByRole('link', { name: 'Saved dual-page fixture', exact: true }).waitFor();
+  // A trusted homepage still cannot bypass static initialization.
   await worker.evaluate(() => { globalThis.desktopFetch = fetch; globalThis.fetch = async (url, options) => { const response = await desktopFetch(url, options); if (!String(url).endsWith('/api/data?format=structured')) return response; const data = await response.json(); data.source = 'static'; data.configured = 'static'; return new Response(JSON.stringify(data), { status: 200 }); }; });
   const confirmed = (await rpc(start, 'cache.get')).value;
   assert.equal((await rpc(start, 'save', { sections: confirmed.sections, baseEtag: confirmed.dataEtag, baseSource: 'static', initialize: true })).status, 403);
   await worker.evaluate(() => { globalThis.fetch = desktopFetch; });
-  await manager.locator('#refresh').click(); await manager.waitForFunction(() => !document.querySelector('#addGroup').disabled);
-  // Separate tab reuse must not navigate either page away or lose unsaved input.
-  await manager.locator('#addBookmark').click(); await manager.locator('[name=title]').fill('Drawer dimensions fixture');
+  await peer.locator('#refresh').click(); await peer.waitForFunction(() => !document.querySelector('#addGroup').disabled);
+  // Responsive desktop/editor and single popup entry reuse an existing homepage tab.
+  await peer.locator('.tile-add button').click(); await peer.getByRole('menuitem', { name: '新增书签', exact: true }).click();
+  await peer.locator('[name=title]').fill('Editor dimensions fixture');
   for (const width of [1280, 1047, 820, 390, 320]) {
-    await manager.setViewportSize({ width, height: 900 });
-    const drawer = await manager.locator('#editor').boundingBox(); assert(Math.abs(drawer.x + drawer.width - width) < 2); assert(drawer.width <= width);
-    assert(await manager.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    await manager.screenshot({ path: path.join(directory, `manager-editor-${width}.png`) });
+    await peer.setViewportSize({ width, height: 900 });
+    const editor = await peer.locator('#editor').boundingBox(); assert(editor.x >= 0 && editor.x + editor.width <= width);
+    assert(await peer.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await peer.screenshot({ path: path.join(directory, `start-editor-${width}.png`) });
     await start.setViewportSize({ width, height: 900 });
     assert(await start.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await start.screenshot({ path: path.join(directory, `start-${width}.png`), fullPage: true });
@@ -233,30 +254,24 @@ try {
     const panel = await start.locator('.account-panel').boundingBox(); assert(panel.x >= 0 && panel.x + panel.width <= width && panel.y + panel.height <= 900);
     await start.locator('#clearCache').focus(); await start.keyboard.press('Escape'); assert(await start.locator('#accountTrigger').evaluate(el => el === document.activeElement));
   }
-  manager.once('dialog', dialog => dialog.accept()); await manager.keyboard.press('Escape');
-  for (const width of [1280, 1047, 820, 390, 320]) {
-    await manager.setViewportSize({ width, height: 900 }); assert(await manager.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    await manager.screenshot({ path: path.join(directory, `manager-list-${width}.png`), fullPage: true });
-  }
-  await manager.setViewportSize({ width: 390, height: 900 });
-  await manager.locator('#openSidebar').focus(); await manager.keyboard.press('Enter'); await manager.locator('.group').filter({ hasText: 'Synthetic hidden' }).click();
-  assert(await manager.getByRole('link', { name: 'Hidden needle', exact: true }).isVisible());
-  await manager.locator('#openSidebar').click(); await manager.keyboard.press('Escape'); assert.equal(await manager.locator('#openSidebar').getAttribute('aria-expanded'), 'false');
-  await manager.setViewportSize({ width: 1280, height: 900 }); await manager.locator('#libraryNav .nav-item').first().click();
-  await manager.locator('#gridView').click(); assert.equal(await manager.locator('#cards').evaluate(el => getComputedStyle(el).display), 'grid');
-  await manager.screenshot({ path: path.join(directory, 'manager-grid-1280.png'), fullPage: true }); await manager.locator('#listView').click();
-  await manager.setViewportSize({ width: 1280, height: 900 }); await start.setViewportSize({ width: 1280, height: 900 });
-  await manager.locator('#addGroup').click(); await manager.locator('[name=label]').fill('Discard-only group'); await manager.locator('#editForm button[type=submit]').click();
-  const pagesBefore = context.pages().length; await manager.locator('#openStart').click(); assert.equal(context.pages().length, pagesBefore); assert(await manager.locator('#draftBar').isVisible());
-  await start.locator('#openManager').click(); assert.equal(context.pages().length, pagesBefore); assert(await manager.locator('#draftBar').isVisible());
-  manager.once('dialog', dialog => dialog.accept()); await manager.locator('#discard').click(); assert.equal(await manager.locator('.group').filter({ hasText: 'Discard-only group' }).count(), 0);
-  // Both popup entry buttons reuse these exact tabs, while import buttons remain present.
+  peer.once('dialog', dialog => dialog.accept()); await peer.keyboard.press('Escape');
+  await peer.setViewportSize({ width: 390, height: 900 });
+  await peer.locator('#openSidebar').focus(); await peer.keyboard.press('Enter');
+  await peer.getByRole('button', { name: 'Development', exact: true }).click();
+  assert(await peer.getByRole('link', { name: 'Source code', exact: true }).isVisible());
+  await peer.locator('#openSidebar').click(); await peer.keyboard.press('Escape'); assert.equal(await peer.locator('#openSidebar').getAttribute('aria-expanded'), 'false');
+  await peer.setViewportSize({ width: 1280, height: 900 }); await start.setViewportSize({ width: 1280, height: 900 });
+  await peer.locator('#addGroup').click(); await peer.locator('[name=label]').fill('Discard-only group'); await peer.locator('#editForm button[type=submit]').click();
   const popup = await context.newPage(); await popup.goto(extension + 'popup.html'); const popupCount = context.pages().length;
+  assert.equal(await popup.locator('#openHome').count(), 0);
   assert.equal((await rpc(popup, 'save', { sections: [] })).status, 403); await popup.locator('#openStart').click(); await popup.locator('#status').filter({ hasText: '已打开浏览主页' }).waitFor();
-  await popup.locator('#openHome').click(); await popup.locator('#status').filter({ hasText: '已打开书签管理' }).waitFor(); assert.equal(context.pages().length, popupCount); assert(await popup.locator('#importActive').isVisible()); await popup.close();
+  assert.equal(context.pages().length, popupCount); assert(await popup.locator('#importActive').isVisible());
+  assert(await peer.locator('#draftBar').isVisible()); await popup.close();
+  peer.once('dialog', dialog => dialog.accept()); await peer.locator('#discard').click();
+  assert.equal(await peer.locator('.nav-group').filter({ hasText: 'Discard-only group' }).count(), 0);
   await start.getByRole('button', { name: 'Synthetic Private · Private', exact: true }).click();
   await start.locator('#accountTrigger').click(); start.once('dialog', dialog => dialog.accept()); await start.locator('#logout').click(); await start.locator('#loginForm:not([hidden])').waitFor();
-  assert.equal((await rpc(start, 'save', { sections: [] })).status, 401); assert(await start.getByRole('link', { name: 'Private local copy', exact: true }).isVisible()); await manager.waitForFunction(() => document.querySelector('#addGroup').disabled);
+  assert.equal((await rpc(start, 'save', { sections: [] })).status, 401); assert(await start.getByRole('link', { name: 'Private local copy', exact: true }).isVisible()); await peer.waitForFunction(() => document.querySelector('#addGroup').disabled);
   // Offline/revoked permission retain homepage data; extension worker is the network initiator.
   await worker.evaluate(() => { globalThis.savedFetch = fetch; globalThis.fetch = async () => { throw new TypeError('Synthetic offline'); }; });
   await start.locator('#refresh').click(); await start.locator('#status.error').waitFor(); assert(await start.getByRole('link', { name: 'Private local copy', exact: true }).isVisible());
@@ -268,8 +283,8 @@ try {
   const short = await start.locator('.account-panel').boundingBox(); assert(short.y + short.height <= 500);
   await start.locator('.topbar').click({ position: { x: 1, y: 1 } }); await start.waitForFunction(() => !document.querySelector('#accountMenu').open && document.querySelector('#password').value === '');
   await start.locator('#accountTrigger').click(); await start.locator('.cache-menu summary').click(); start.once('dialog', dialog => dialog.accept()); await start.locator('#clearCache').click();
-  await start.waitForFunction(() => document.querySelectorAll('.tile').length === 0); await manager.waitForFunction(() => document.querySelectorAll('.group').length === 0);
+  await start.waitForFunction(() => document.querySelectorAll('.tile').length === 0); await peer.waitForFunction(() => document.querySelectorAll('.nav-group').length === 0);
   assert.equal((await rpc(start, 'cache.get')).value, null);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ ok: true, realMV3DualPages: true, guardedHomepageRPC: true, homepageCrudDragAndSave: true, homepageConflictAndOfflineDraft: true, saveFailureKeepsIdentityAndDraft: true, real401RequiresLogin: true, managerOnlyInitialization: true, exactPagePolicy: true, sharedConfirmedOnly: true, drawerGuardAndDiscard: true, hiddenPrivateSearchChildren: true, safeLinksAndIconFallback: true, separateTabReuse: true, offlineLogoutRevokeAndClear: true, desktopAnd320390: true, noCspErrors: true, artifactDirectory: directory }, null, 2));
+  console.log(JSON.stringify({ ok: true, realMV3TwoHomepageTabs: true, guardedHomepageRPC: true, homepageCrudDragAndSave: true, homepageConflictAndOfflineDraft: true, saveFailureKeepsIdentityAndDraft: true, real401RequiresLogin: true, staticInitializationDenied: true, exactPagePolicy: true, sharedConfirmedOnly: true, editorGuardAndDiscard: true, hiddenPrivateSearchChildren: true, safeLinksAndIconFallback: true, homepageTabReuse: true, offlineLogoutRevokeAndClear: true, desktopAnd320390: true, noCspErrors: true, artifactDirectory: directory }, null, 2));
 } catch (error) { console.error(error); throw error; } finally { await context.close(); }
