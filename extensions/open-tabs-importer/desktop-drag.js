@@ -6,7 +6,7 @@ export function bindDesktopDrag({ state, editable, searching, resolve, changed, 
   function cancel() { clean(); document.querySelectorAll('.drag-source').forEach(el => el.classList.remove('drag-source')); document.body.classList.remove('dragging'); source = null; suppressUntil = Date.now() + 250; }
   document.addEventListener('dragstart', event => {
     const node = event.target.closest('[data-ref]'); const ref = resolve(node);
-    if (!ref || !editable() || searching() || node.draggable !== true) { event.preventDefault(); return; }
+    if (document.body.classList.contains('resizing-sidebar') || !ref || !editable() || searching() || node.draggable !== true) { event.preventDefault(); return; }
     source = ref; node.classList.add('drag-source'); document.body.classList.add('dragging');
     event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'Qiye internal draft');
   });

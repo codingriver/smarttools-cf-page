@@ -8,7 +8,7 @@
     "deploy": "npm run build && npm run verify:deploy && npx wrangler@latest pages deploy dist --project-name smarttools --branch main --commit-dirty=true --skip-caching",
     "test:build": "node scripts/build-acceptance.mjs",
     "test:api": "node scripts/acceptance.mjs && node scripts/account-security-acceptance.mjs && node scripts/extension-data-acceptance.mjs",
-    "test:extension": "node scripts/extension-desktop-acceptance.mjs && node scripts/extension-drag-acceptance.mjs && node scripts/extension-layout-acceptance.mjs && node scripts/extension-browser-acceptance.mjs && node scripts/extension-cache-acceptance.mjs && node scripts/extension-pages-acceptance.mjs",
+    "test:extension": "node scripts/extension-desktop-acceptance.mjs && node scripts/extension-drag-acceptance.mjs && node scripts/extension-layout-acceptance.mjs && node scripts/extension-sidebar-acceptance.mjs && node scripts/extension-browser-acceptance.mjs && node scripts/extension-cache-acceptance.mjs && node scripts/extension-pages-acceptance.mjs",
     "test:extension-data": "node scripts/extension-data-acceptance.mjs",
     "test:security": "node scripts/account-security-acceptance.mjs",
     "test:browser": "node scripts/browser-acceptance.mjs && node scripts/cache-acceptance.mjs",

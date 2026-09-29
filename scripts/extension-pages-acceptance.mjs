@@ -46,13 +46,26 @@ try {
   assert.equal(await start.locator('.nav-label').filter({ hasText: 'Synthetic hidden' }).count(), 0);
   await start.keyboard.press('Escape');
   const peer = await context.newPage(); await peer.goto(extension + 'start.html'); await peer.locator('#addGroup:not([disabled])').waitFor();
-  assert.equal(await start.locator('.desktop-sidebar').evaluate(el => getComputedStyle(el).width), '56px');
+  assert.equal(await start.locator('.desktop-sidebar').evaluate(el => getComputedStyle(el).width), '180px');
   assert.equal(await start.locator('.tile-mark').first().evaluate(el => getComputedStyle(el).width), '60px');
   assert.equal(await peer.locator('.nav-group').filter({ hasText: 'Synthetic hidden' }).count(), 0);
   const rpc = (page, action, extra = {}) => page.evaluate(({ action, configUrl, extra }) => chrome.runtime.sendMessage({ channel: 'smarttools-client', action, configUrl, ...extra }), { action, configUrl: base + '/config.html', extra });
   assert.equal((await rpc(start, 'save', { sections: [] })).status, 409, 'trusted start reaches version guard');
   assert.equal((await rpc(start, 'unknown')).status, 403, 'unknown action denied before dispatch');
   assert.equal((await rpc(start, 'cache.get')).value.sections.length, fixture.length);
+  const cacheBeforeResize = (await rpc(start, 'cache.get')).value;
+  const handle = start.locator('#sidebarResize'); const handleBox = await handle.boundingBox();
+  await start.mouse.move(handleBox.x + 4, 150); await start.mouse.down();
+  await start.mouse.move(handleBox.x + 64, 150, { steps: 8 }); await start.mouse.up();
+  await start.waitForFunction(() => document.querySelector('#sidebarResize').getAttribute('aria-valuenow') === '240');
+  await peer.waitForFunction(() => document.querySelector('#sidebarResize').getAttribute('aria-valuenow') === '240');
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('desktopSidebarWidth'))).desktopSidebarWidth, 240);
+  assert(await start.locator('#draftBar').isHidden());
+  assert.deepEqual((await rpc(start, 'cache.get')).value, cacheBeforeResize);
+  await peer.reload(); await peer.waitForFunction(() => document.querySelector('#sidebarResize').getAttribute('aria-valuenow') === '240');
+  await peer.locator('#sidebarResize').dblclick();
+  await start.waitForFunction(() => document.querySelector('#sidebarResize').getAttribute('aria-valuenow') === '180');
+
   // Exact page allowlist: a query-string lookalike cannot call the cache channel.
   const lookalike = await context.newPage(); await lookalike.goto(extension + 'start.html?untrusted'); assert.equal((await rpc(lookalike, 'cache.get')).status, 403); await lookalike.close();
   await start.locator('#search').fill('Nested needle'); assert.equal(await start.locator('.tile').count(), 1); assert(await start.getByRole('link', { name: 'Nested needle', exact: true }).isVisible());
@@ -146,7 +159,8 @@ try {
   assert(await start.locator('#draftBar').isHidden()); assert(await tileNamed('Private local copy').isVisible());
   await start.getByRole('button', { name: 'Daily essentials', exact: true }).click();
   const groupRow = name => start.locator('.nav-row').filter({ has: start.getByRole('button', { name, exact: true }) });
-  await groupRow('Daily essentials').dragTo(groupRow('Development'), { targetPosition: { x: 20, y: 55 } });
+  const groupTarget = await groupRow('Development').boundingBox();
+  await groupRow('Daily essentials').dragTo(groupRow('Development'), { targetPosition: { x: 20, y: groupTarget.height - 6 } });
   assert.equal(await start.locator('#groups .nav-group').first().getAttribute('aria-label'), 'Development');
   start.once('dialog', d => d.accept()); await start.locator('#discard').click();
   // Keyboard menu entry, unapplied-input guard, and new folder/child flows.
@@ -286,5 +300,5 @@ try {
   await start.waitForFunction(() => document.querySelectorAll('.tile').length === 0); await peer.waitForFunction(() => document.querySelectorAll('.nav-group').length === 0);
   assert.equal((await rpc(start, 'cache.get')).value, null);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ ok: true, realMV3TwoHomepageTabs: true, guardedHomepageRPC: true, homepageCrudDragAndSave: true, homepageConflictAndOfflineDraft: true, saveFailureKeepsIdentityAndDraft: true, real401RequiresLogin: true, staticInitializationDenied: true, exactPagePolicy: true, sharedConfirmedOnly: true, editorGuardAndDiscard: true, hiddenPrivateSearchChildren: true, safeLinksAndIconFallback: true, homepageTabReuse: true, offlineLogoutRevokeAndClear: true, desktopAnd320390: true, noCspErrors: true, artifactDirectory: directory }, null, 2));
+  console.log(JSON.stringify({ ok: true, realMV3TwoHomepageTabs: true, sidebarDragSyncAndPersistence: true, guardedHomepageRPC: true, homepageCrudDragAndSave: true, homepageConflictAndOfflineDraft: true, saveFailureKeepsIdentityAndDraft: true, real401RequiresLogin: true, staticInitializationDenied: true, exactPagePolicy: true, sharedConfirmedOnly: true, editorGuardAndDiscard: true, hiddenPrivateSearchChildren: true, safeLinksAndIconFallback: true, homepageTabReuse: true, offlineLogoutRevokeAndClear: true, desktopAnd320390: true, noCspErrors: true, artifactDirectory: directory }, null, 2));
 } catch (error) { console.error(error); throw error; } finally { await context.close(); }

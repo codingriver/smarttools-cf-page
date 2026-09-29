@@ -130,7 +130,7 @@ for (const [file, expected] of [
 ]) assert((await fs.readFile(path.join(extensionDirectory, file), 'utf8')).includes(expected), 'rename compatibility: ' + file);
 
 assert(JSON.stringify(extensionManifest.permissions) === JSON.stringify(['tabs', 'scripting', 'storage', 'contextMenus']), 'extension permission mismatch');
-for (const file of ['start.html', 'start.js', 'start.css', 'draft-actions.js', 'library-editing.js', 'editor-dialog.js', 'desktop-drag.js', 'account-component.js', 'account.css', 'navigation.js', 'view-utils.js', 'fonts/FjallaOne-Regular.ttf', 'fonts/OFL.txt', 'client.js', 'cache-db.js', 'cache-controller.js', 'menu-model.js', 'model.js', 'site.js']) {
+for (const file of ['start.html', 'start.js', 'start.css', 'draft-actions.js', 'library-editing.js', 'editor-dialog.js', 'desktop-drag.js', 'sidebar-resize.js', 'account-component.js', 'account.css', 'navigation.js', 'view-utils.js', 'fonts/FjallaOne-Regular.ttf', 'fonts/OFL.txt', 'client.js', 'cache-db.js', 'cache-controller.js', 'menu-model.js', 'model.js', 'site.js']) {
   assert((await fs.stat(path.join(extensionDirectory, file))).isFile(), `missing local extension resource: ${file}`);
 }
 for (const obsolete of ['home.html', 'home.js', 'home.css']) {

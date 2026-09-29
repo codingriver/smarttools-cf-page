@@ -7,6 +7,7 @@ import { isFolder, saveDraft } from './draft-actions.js';
 import { createEditing } from './library-editing.js';
 import { createEditor } from './editor-dialog.js';
 import { bindDesktopDrag } from './desktop-drag.js';
+import { bindSidebarResize } from './sidebar-resize.js';
 import { client, applyClientError, sessionLabel } from './client.js';
 import { DEFAULT_CONFIG_URL, normalizeConfigUrl, authorizeSite, sitePattern } from './site.js';
 const $ = id => document.getElementById(id);
@@ -21,6 +22,7 @@ const editor = createEditor({ editable, changed, beforeOpen: () => { closeMenu()
 const hasDraft = () => state.dirty || editor.pending();
 const editing = createEditing({ state, dialog: editor.dialog, changed, clearSearch: () => { $('search').value = ''; } });
 function status(text, error = false) { $('status').textContent = text; $('status').className = error ? 'error' : ''; }
+bindSidebarResize({ sidebar: $('sidebar'), separator: $('sidebarResize'), report: status });
 async function run(task) { try { await task(); } catch (error) { status(error.message || '网络不可用；可继续浏览本机缓存', true); } }
 function changed() { state.dirty = true; closeMenu(); render(); status('修改已应用到当前页面草稿，尚未保存到云端'); }
 function rememberSelection() {

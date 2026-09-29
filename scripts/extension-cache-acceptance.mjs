@@ -174,7 +174,9 @@ try {
   }
   await worker.evaluate(() => { globalThis.fetch = guardFetch; });
   // Logout and anonymous sync retain full local data and visible menu destinations, but cannot save.
+  await worker.evaluate(() => chrome.storage.local.set({ desktopSidebarWidth: 216 }));
   const cached = await rpc('cache.get'); await rpc('logout');
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('desktopSidebarWidth'))).desktopSidebarWidth, 216);
   const anonymous = await rpc('sync', { force: true }); assert.equal(anonymous.loggedIn, false); assert.equal(anonymous.snapshot.dataEtag, cached.dataEtag);
   result = await click(await targetId('private'), 'https://example.invalid/unauthorized'); assert.equal(result.error, true); assert.match(result.text, /登录/);
   assert.equal((await rpc('cache.get')).dataEtag, cached.dataEtag);
@@ -188,6 +190,7 @@ try {
   assert.equal(await page.locator('.nav-group').filter({ hasText: 'Private cache fixture' }).count(), 0);
   await page.locator('#status.error').waitFor(); assert(await page.locator('#save').isDisabled());
   const restartedStart = await context.newPage(); await restartedStart.goto(`chrome-extension://${id}/start.html`);
+  await restartedStart.waitForFunction(() => document.querySelector('#sidebarResize').getAttribute('aria-valuenow') === '216');
   await restartedStart.getByRole('button', { name: 'Visible private fixture · Private', exact: true }).click();
   await restartedStart.getByRole('link', { name: 'Offline Private start fixture', exact: true }).waitFor();
   await restartedStart.locator('#status.error').waitFor();
@@ -209,6 +212,7 @@ try {
   await rpc('login', { username, password }, page, other);
   assert.equal((await rpc('cache.get', {}, page, other)).site, other);
   await rpc('cache.clear', {}, page, other); assert.equal(await rpc('cache.get', {}, page, other), null);
+  assert.equal((await worker.evaluate(() => chrome.storage.local.get('desktopSidebarWidth'))).desktopSidebarWidth, 216);
   await worker.evaluate(configUrl => chrome.storage.sync.set({ configUrl }), base + '/config.html');
   await page.waitForFunction(url => document.querySelector('#siteUrl').value === url, base + '/config.html');
   assert.equal((await rpc('cache.get')).site, base);
@@ -234,6 +238,6 @@ try {
   assert.equal(await worker.evaluate(async site => testCache.readSnapshot(site), other), null);
   assert.equal(Object.keys(await worker.evaluate(async () => (await testCache.readMenuIndex()).entries)).length, 0);
   await page.waitForFunction(() => document.querySelectorAll('.nav-group').length === 0);
-  console.log(JSON.stringify({ ok: true, realMV3: true, sharedIndexedDB: true, restartOfflinePrivate: true, logoutReadOnly: true, draftsIsolated: true, metaAvoidsFullDownload: true, menuPageLinkParentDuplicateSerialCapture: true, stableTargets: true, contentScriptDenied: true, storageFailureAndCorruption: true, staticNoKVAuthAndConflictGuards: true, multiSiteAndClearRace: true, nativeMenuAndPermissionPrompt: 'manual not automated', artifactDirectory: directory }, null, 2));
+  console.log(JSON.stringify({ ok: true, realMV3: true, sharedIndexedDB: true, restartOfflinePrivate: true, sidebarPreferenceSurvivesRestartLogoutSiteAndClear: true, logoutReadOnly: true, draftsIsolated: true, metaAvoidsFullDownload: true, menuPageLinkParentDuplicateSerialCapture: true, stableTargets: true, contentScriptDenied: true, storageFailureAndCorruption: true, staticNoKVAuthAndConflictGuards: true, multiSiteAndClearRace: true, nativeMenuAndPermissionPrompt: 'manual not automated', artifactDirectory: directory }, null, 2));
 } finally { await context?.close(); }
 

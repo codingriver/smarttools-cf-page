@@ -5,7 +5,7 @@ SmartTools is self-hosted. The extension imports open tabs and provides an indep
 ## Required permissions
 - `tabs`: read titles, URLs and favicon URLs when the user imports/copies/exports tabs; locate the configured backend and reuse the extension homepage. No history API is used.
 - `scripting`: deliver the import handshake to the configured backend and dynamically register `pending-import.js` there.
-- `storage`: store the configured URL in `chrome.storage.sync` and pending import payloads in `chrome.storage.local` until acknowledged, plus per-site selected-group UI preferences. No password or authentication token is persisted. Full datasets use extension-origin IndexedDB, NOT chrome.storage.local.
+- `storage`: store the configured URL in `chrome.storage.sync` and pending import payloads in `chrome.storage.local` until acknowledged, plus per-site selected-group and cross-site desktop sidebar width UI preferences. Sidebar resizing is local-only and does not modify the bookmark cache. No password or authentication token is persisted. Full datasets use extension-origin IndexedDB, NOT chrome.storage.local.
 
 - `contextMenus`: show group/card destinations for explicit page/link/toolbar captures. No alarms, unlimitedStorage, bookmarks, cookies or notifications permission.
 
