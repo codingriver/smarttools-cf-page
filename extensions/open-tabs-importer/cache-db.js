@@ -1,12 +1,14 @@
+import { validateDocument } from './bookmark-document.js';
 // Extension-origin IndexedDB only. Never exposed to content scripts or website origins.
 const DB_NAME = 'smarttools-confirmed-cache';
 let opening;
 function openDatabase() {
   if (!opening) opening = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore('snapshots', { keyPath: 'site' });
-      request.result.createObjectStore('internal');
+      if (!request.result.objectStoreNames.contains('snapshots')) request.result.createObjectStore('snapshots', { keyPath: 'site' });
+      request.result.createObjectStore('documents', { keyPath: 'site' });
+      if (!request.result.objectStoreNames.contains('internal')) request.result.createObjectStore('internal');
     };
     request.onsuccess = () => {
       const db = request.result;
@@ -28,33 +30,38 @@ async function transaction(store, mode, operation) {
   });
 }
 export function validSnapshot(value, site) {
-  const keys = new Set();
-  const cardsValid = (cards, depth = 0) => depth <= 10 && Array.isArray(cards) && cards.every(card =>
-    card && typeof card === 'object' && !Array.isArray(card) && (card.subCards === undefined || cardsValid(card.subCards, depth + 1)));
-  return value?.schema === 1 && value.site === site && value.privateFiltered === false
-    && typeof value.dataEtag === 'string' && value.dataEtag.length > 0 && Number.isFinite(value.savedAt)
-    && Array.isArray(value.sections) && value.sections.every(section => {
-      if (!section || typeof section.key !== 'string' || !section.key || keys.has(section.key) || !cardsValid(section.cards)) return false;
-      keys.add(section.key); return true;
-    });
+  try { validateDocument(value?.document); return value.schema === 2 && value.site === site && typeof value.etag === 'string' && !!value.etag && Number.isFinite(value.savedAt); } catch { return false; }
 }
 export async function readSnapshot(site) {
-  const value = await transaction('snapshots', 'readonly', store => store.get(site));
-  if (value === undefined) return null;
+  const value = await transaction('documents', 'readonly', store => store.get(site));
+  if (value === undefined) {
+    const legacy = await transaction('snapshots', 'readonly', store => store.get(site));
+    if (!legacy) return null;
+    if (legacy.schema !== 1 || legacy.site !== site || legacy.privateFiltered !== false || !Array.isArray(legacy.sections)) throw new Error('旧版本机缓存损坏，请联网刷新或清除');
+    return { ...legacy, legacy: true }; // Only read-only conversion in the page; never uploaded.
+  }
   if (!validSnapshot(value, site)) throw new Error('本机缓存格式损坏，请联网刷新或清除缓存');
   return value;
 }
 export async function writeSnapshot(snapshot) {
-  if (!validSnapshot(snapshot, snapshot.site)) throw new Error('拒绝缓存非管理员确认的数据');
-  await transaction('snapshots', 'readwrite', store => store.put(snapshot));
+  if (!validSnapshot(snapshot, snapshot.site)) throw new Error('拒绝缓存未经确认或无效的文档');
+  const db = await openDatabase();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['documents', 'snapshots'], 'readwrite');
+    tx.oncomplete = resolve; tx.onabort = tx.onerror = () => reject(new Error('本机缓存写入失败，旧快照保留'));
+    try { tx.objectStore('documents').put(snapshot); tx.objectStore('snapshots').delete(snapshot.site); }
+    catch (error) { tx.abort(); reject(error); }
+  });
 }
 export async function clearSnapshots(site) {
   const db = await openDatabase();
   await new Promise((resolve, reject) => {
     // Menu fingerprints may contain card content too: erase them in the same transaction.
-    const tx = db.transaction(['snapshots', 'internal'], 'readwrite');
+    const tx = db.transaction(['documents', 'snapshots', 'internal'], 'readwrite');
     tx.oncomplete = resolve;
     tx.onabort = tx.onerror = () => reject(new Error('清除本机缓存失败；请重试'));
+    const documents = tx.objectStore('documents');
+    if (site) documents.delete(site); else documents.clear();
     const snapshots = tx.objectStore('snapshots');
     if (site) snapshots.delete(site); else snapshots.clear();
     const internal = tx.objectStore('internal');

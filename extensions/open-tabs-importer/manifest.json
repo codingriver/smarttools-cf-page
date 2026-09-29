@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "栖页 · 书签桌面",
   "version": "1.2.0",
-  "description": "Qiye — Bookmark Desktop: browse and organize bookmarks, save links, and import open tabs into your configured server.",
+  "description": "Qiye — Bookmark Desktop: organize nested bookmark folders, keep a private local copy, and explicitly save to your v2 server.",
   "permissions": [
     "tabs",
     "scripting",

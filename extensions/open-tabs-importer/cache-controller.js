@@ -1,7 +1,8 @@
 import { openExtensionPage } from './navigation.js';
 import { DEFAULT_CONFIG_URL, normalizeConfigUrl, sitePattern } from './site.js';
 import { readSnapshot, writeSnapshot, clearSnapshots, readMenuIndex, writeMenuIndex } from './cache-db.js';
-import { clone, deltaPayload } from './model.js';
+import { clone } from './model.js';
+import { validateDocument } from './bookmark-document.js';
 import { menuTargets, captureItem, appendCapture } from './menu-model.js';
 
 let queue = Promise.resolve();
@@ -22,7 +23,7 @@ async function guard(configUrl, revision, network = false) {
 function notify(type, site, extra = {}) {
   chrome.runtime.sendMessage({ channel: 'smarttools-cache-event', type, site, ...extra }).catch(() => {});
 }
-async function request(configUrl, revision, path, body) {
+async function request(configUrl, revision, path, body, method) {
   await guard(configUrl, revision, true);
   const writing = body !== undefined;
   const uncertain = writing ? '写入结果未确认，请保留草稿并先核对云端，不要直接重复提交。' : '可继续浏览本机缓存，请检查连接。';
@@ -32,11 +33,11 @@ async function request(configUrl, revision, path, body) {
   };
   let response;
   try {
-    response = await fetch(origin(configUrl) + path, { method: writing ? 'POST' : 'GET', credentials: 'include', cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(20000), headers: { 'Content-Type': 'application/json' }, ...(writing ? { body: JSON.stringify(body) } : {}) });
+    response = await fetch(origin(configUrl) + path, { method: method || (writing ? 'POST' : 'GET'), credentials: 'include', cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(20000), headers: { 'Content-Type': 'application/json' }, ...(writing ? { body: JSON.stringify(body) } : {}) });
   } catch (error) {
     throw connectionFailure(error.name === 'TimeoutError' || error.name === 'AbortError' ? '请求超时（20 秒），不代表登录已失效' : '网络请求失败，不代表登录已失效', 0, 'NETWORK_UNAVAILABLE');
   }
-  await guard(configUrl, revision, true);
+  try { await guard(configUrl, revision, true); } catch (error) { if (writing && response.ok) { error.outcomeUnknown = true; error.message = '服务端已响应，但本机状态变化；请核对云端后再保存'; } throw error; }
   // Authentication is determined by the HTTP status even if an upstream error body is not JSON.
   if (response.status === 401) {
     notify('auth', origin(configUrl), { loggedIn: false });
@@ -45,6 +46,7 @@ async function request(configUrl, revision, path, body) {
   let data;
   try { data = await response.json(); }
   catch { throw connectionFailure(`HTTP ${response.status}：服务端返回了非 JSON 响应，请检查站点或网关`, response.status, 'INVALID_RESPONSE'); }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw connectionFailure('无效的 JSON 响应', 502, 'INVALID_RESPONSE');
   if (!response.ok || data.ok === false) {
     const error = failure(`${path} · HTTP ${response.status}：${data.error || '请求失败'}`, response.status, { code: data.code || 'HTTP_ERROR', path, outcomeUnknown: data.outcomeUnknown === true || (writing && response.status >= 500) });
     if (response.status === 403 || response.status >= 500 || error.outcomeUnknown) notify('connection', origin(configUrl), { issue: error.message });
@@ -52,22 +54,24 @@ async function request(configUrl, revision, path, body) {
   }
   return data;
 }
-async function fullData(configUrl, revision, requireAdmin = false) {
-  const data = await request(configUrl, revision, '/api/data?format=structured');
-  if (!Array.isArray(data.sections) || typeof data.privateFiltered !== 'boolean' || typeof data.dataEtag !== 'string') throw failure('当前服务端尚不支持结构化数据，请升级站点或使用完整后台', 400, { code: 'INVALID_RESPONSE' });
-  if (requireAdmin && data.privateFiltered !== false) {
-    notify('auth', origin(configUrl), { loggedIn: false }); throw failure('请先登录后再收藏或保存；本机缓存保留', 401);
-  }
+function confirmed(data) {
+  try { validateDocument(data?.document); } catch { throw failure('服务端返回了无效的书签文档，本机确认缓存保留', 502, { code: 'INVALID_RESPONSE' }); }
+  if (typeof data.meta?.etag !== 'string' || !data.meta.etag || data.meta.view !== 'admin' || data.meta.source !== 'kv') throw failure('无效的新协议确认响应', 502, { code: 'INVALID_RESPONSE' });
   return data;
 }
+async function fullData(configUrl, revision) {
+  return confirmed(await request(configUrl, revision, '/api/v2/bookmarks'));
+}
 async function commit(configUrl, revision, data) {
+  await guard(configUrl, revision); confirmed(data);
+  const snapshot = { schema: 2, site: origin(configUrl), document: data.document, etag: data.meta.etag, savedAt: Date.now() };
+  let warning = data.warning, cached = false;
+  try { await writeSnapshot(snapshot); cached = true; } catch (error) { warning = '本机缓存未更新：' + error.message; }
   await guard(configUrl, revision);
-  const snapshot = { schema: 1, site: origin(configUrl), sections: clone(data.sections), privateFiltered: false, dataEtag: data.dataEtag, dataVersion: data.dataVersion, source: data.source, configured: data.configured, hasKV: data.hasKV, savedAt: Date.now() };
-  try { await writeSnapshot(snapshot); }
-  catch (error) { return { snapshot: { ...snapshot, savedAt: null }, warning: error.message }; }
-  notify('changed', snapshot.site, { dataEtag: snapshot.dataEtag });
-  let warning;
-  try { await rebuildMenus(); } catch { warning = '数据已缓存，但菜单更新失败，请重新打开扩展或刷新收藏位置'; }
+  if (cached) {
+    notify('changed', snapshot.site, { dataEtag: snapshot.etag });
+    try { await rebuildMenus(); } catch { warning ||= '菜单更新失败，请刷新收藏位置'; }
+  }
   return { snapshot, warning };
 }
 async function sync(configUrl, revision, force) {
@@ -75,31 +79,33 @@ async function sync(configUrl, revision, force) {
   try { cached = await readSnapshot(origin(configUrl)); } catch (error) { warning = error.message; }
   const check = await request(configUrl, revision, '/api/check');
   notify('auth', origin(configUrl), { loggedIn: check.loggedIn === true });
-  if (!check.loggedIn) {
-    // Public responses are only transient; never replace a complete local copy.
-    return { loggedIn: false, snapshot: cached || await fullData(configUrl, revision), warning };
-  }
-  if (cached && !force) {
-    const meta = await request(configUrl, revision, '/api/data-meta');
-    if (!meta.loggedIn || meta.privateFiltered !== false) { notify('auth', origin(configUrl), { loggedIn: false }); return { loggedIn: false, snapshot: cached }; }
-    if (meta.dataEtag === cached.dataEtag && meta.source === cached.source && check.hasKV === cached.hasKV) return { loggedIn: true, snapshot: cached, warning };
+  if (!check.loggedIn) return { loggedIn: false, snapshot: cached, warning };
+  if (cached?.schema === 2 && !force) {
+    const meta = await request(configUrl, revision, '/api/v2/bookmarks/meta');
+    if (meta.schemaVersion !== 2 || typeof meta.etag !== 'string' || !meta.etag || !Number.isSafeInteger(meta.updatedAt) || meta.updatedAt < 0) throw failure('无效的书签版本响应，本机缓存保留', 502, { code: 'INVALID_RESPONSE' });
+    if (meta.etag === cached.etag) return { loggedIn: true, snapshot: cached, warning };
+    if (meta.updatedAt <= cached.document.updatedAt) return { loggedIn: true, snapshot: cached, warning: '云端副本尚未确认更新，保留本机已确认版本，请稍后核对' };
   }
   const data = await fullData(configUrl, revision);
-  if (data.privateFiltered) { notify('auth', origin(configUrl), { loggedIn: false }); return { loggedIn: false, snapshot: cached || data, warning }; }
+  if (cached?.schema === 2 && data.meta.etag !== cached.etag && data.document.updatedAt <= cached.document.updatedAt) return { loggedIn: true, snapshot: cached, warning: '云端副本版本较旧或存在并发变化，保留本机确认版本' };
   return { loggedIn: true, ...await commit(configUrl, revision, data) };
 }
+let lastWrite = 0;
+async function putDocument(configUrl, revision, document, baseEtag) {
+  validateDocument(document);
+  const delay = Math.max(0, 1150 - (Date.now() - lastWrite));
+  if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+  lastWrite = Date.now();
+  const response = await request(configUrl, revision, '/api/v2/bookmarks', { document, baseEtag }, 'PUT');
+  try { return confirmed(response); } catch { throw failure('保存响应无法验证，请保留草稿并先核对云端', 502, { code: 'INVALID_RESPONSE', outcomeUnknown: true }); }
+}
 async function save(configUrl, revision, message) {
-  const latest = await fullData(configUrl, revision, true);
-  if (latest.source !== 'kv' || message.initialize === true) throw failure('请在网站完整后台保存到 KV 并切换数据源，扩展不支持静态初始化', 403);
-  if (!latest.hasKV) throw failure('未绑定 KV：当前只读', 400);
-  if (latest.dataEtag !== message.baseEtag || latest.configured !== message.baseSource) throw failure('云端数据或数据源已变化，请保留草稿，刷新并核对后再保存', 409);
-  if (!Array.isArray(message.sections)) throw failure('无效草稿', 400);
-  const payload = deltaPayload(latest.sections, message.sections);
-  const result = await request(configUrl, revision, '/api/save', { ...payload, baseEtag: message.baseEtag, baseSource: message.baseSource });
-  // A successful server save must not be reported as a failed write just because local caching failed.
-  try {
-    return { saved: true, loggedIn: true, ...await commit(configUrl, revision, { ...latest, sections: message.sections, dataEtag: result.dataEtag, dataVersion: result.dataVersion, source: 'kv', configured: 'kv' }) };
-  } catch { return { saved: true, warning: '云端已保存，但本机状态已变化；请刷新核对', snapshot: null }; }
+  if (message.initialize) throw failure('扩展不支持初始化，请先完成维护迁移', 403);
+  const latest = await fullData(configUrl, revision);
+  if (latest.meta.etag !== message.baseEtag) throw failure('云端数据已变化，请保留草稿并核对', 409, { code: 'SAVE_CONFLICT' });
+  const result = await putDocument(configUrl, revision, message.document, message.baseEtag);
+  try { return { saved: true, loggedIn: true, ...await commit(configUrl, revision, result) }; }
+  catch { return { saved: true, warning: '云端已保存，本机状态变化；请刷新核对', snapshot: null }; }
 }
 export async function openHome() {
   return openExtensionPage('start.html');
@@ -122,16 +128,19 @@ export async function rebuildMenus() {
   const contexts = ['page', 'link', 'action'];
   await chrome.contextMenus.removeAll();
   await createMenu({ id: 'smarttools-root', title: '收藏到栖页', contexts });
-  for (const [g, group] of menuTargets(snapshot).entries()) {
-    const parentId = `${revision}-g${g}`;
-    await createMenu({ id: parentId, parentId: 'smarttools-root', title: group.title, contexts });
-    for (const [i, entry] of group.entries.entries()) {
-      const id = `${parentId}-${i}`;
-      index.entries[id] = entry.target;
-      await createMenu({ id, parentId, title: entry.title, contexts });
-    }
+  const containerMenus = new Map(); let count = 0, overflow = false;
+  for (const group of menuTargets(snapshot)) {
+    if (++count > 200) { overflow = true; break; }
+    const parentId = `${revision}-g${count}`;
+    try {
+      await createMenu({ id: parentId, parentId: containerMenus.get(group.parentId) || 'smarttools-root', title: group.title, contexts });
+      containerMenus.set(group.id, parentId);
+      const id = `${parentId}-save`; index.entries[id] = group.entries[0].target;
+      await createMenu({ id, parentId, title: '＋ 收藏到此处', contexts });
+    } catch { overflow = true; break; }
   }
-  if (!snapshot) await createMenu({ id: 'smarttools-load', parentId: 'smarttools-root', title: '登录／加载收藏位置', contexts });
+  if (overflow) await createMenu({ id: 'smarttools-choose', parentId: 'smarttools-root', title: '更多位置：打开主页手动添加', contexts });
+  if (!snapshot?.document) await createMenu({ id: 'smarttools-load', parentId: 'smarttools-root', title: '登录／加载收藏位置', contexts });
   await createMenu({ id: 'smarttools-refresh', parentId: 'smarttools-root', title: '刷新收藏位置', contexts });
   await createMenu({ id: 'smarttools-home', parentId: 'smarttools-root', title: '打开扩展主页／登录', contexts });
   await writeMenuIndex(index);
@@ -142,7 +151,7 @@ export function handleMenuClick(info, tab) {
   const chosenRevision = epoch;
   return serial(async () => {
     const configUrl = await configured(), revision = epoch;
-    if (['smarttools-load', 'smarttools-home'].includes(info.menuItemId)) return openHome();
+    if (['smarttools-load', 'smarttools-home', 'smarttools-choose'].includes(info.menuItemId)) return openHome();
     if (info.menuItemId === 'smarttools-refresh') {
       const value = await sync(configUrl, revision, true);
       return resultStatus(value.warning || (value.loggedIn ? '收藏位置已刷新' : '请先登录；已缓存收藏位置保留'), !value.loggedIn || !!value.warning);
@@ -155,21 +164,20 @@ export function handleMenuClick(info, tab) {
     if (!target || index.site !== origin(configUrl)) throw failure('收藏位置已变化，请重新打开右键菜单', 409);
     const item = captureItem(info, tab);
     const latest = await fullData(configUrl, revision, true);
-    if (!latest.hasKV) throw failure('未绑定 KV：不能收藏', 400);
-    if (latest.source !== 'kv') throw failure('请先在网站完整后台保存到 KV 并切换数据源', 409);
-    const sections = clone(latest.sections);
-    if (!appendCapture(sections, target, item, index.site, crypto.randomUUID())) {
+    const document = clone(latest.document);
+    if (!appendCapture(document, target, item, index.site, crypto.randomUUID())) {
       const result = await commit(configUrl, revision, latest);
       return resultStatus(result.warning || '该位置已有相同 URL，已跳过', !!result.warning);
     }
-    const result = await request(configUrl, revision, '/api/save', { ...deltaPayload(latest.sections, sections), baseEtag: latest.dataEtag, baseSource: latest.configured });
+    const result = await putDocument(configUrl, revision, document, latest.meta.etag);
     let warning;
-    try { ({ warning } = await commit(configUrl, revision, { ...latest, sections, dataEtag: result.dataEtag, dataVersion: result.dataVersion })); }
+    try { ({ warning } = await commit(configUrl, revision, result)); }
     catch { warning = '本机状态已变化，请刷新核对'; }
     await resultStatus(warning ? `云端已收藏；${warning}` : '已收藏到栖页', !!warning);
   }).catch(error => resultStatus(error.message || '收藏失败，请打开扩展主页检查', true));
 }
 export function dispatch(message, sender = {}) {
+  if (!trustedClient(sender, message.action)) return Promise.reject(failure('不允许的调用来源', 403));
   // Invalidate in-flight responses immediately, then perform the actual delete in queue order.
   if (message.action === 'cache.clear') epoch++;
   const revision = epoch;

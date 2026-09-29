@@ -12,6 +12,12 @@ export function mountAccount(host) {
           </div></details>
         </section>
         <button id="checkConnection" type="button" hidden>检查连接与云端（保留草稿）</button>
+        <section class="bookmark-transfer" aria-label="书签 JSON 备份">
+          <strong>书签备份</strong>
+          <div class="cache-actions"><button id="exportBookmarks" type="button" disabled>导出 JSON</button><button id="importBookmarks" type="button" disabled>导入 JSON</button></div>
+          <p id="transferHint">导出已确认数据（含 Private，未加密），不含草稿。导入需登录并加载可写版本，只替换本页草稿，不立即保存。</p>
+          <input id="bookmarkFile" type="file" accept=".json,application/json" aria-label="选择书签 JSON 文件" hidden>
+        </section>
         <section class="cache-status" aria-label="本机缓存">
           <span id="cacheInfo" role="status" aria-live="polite"></span>
           <details class="cache-menu"><summary>缓存管理</summary><div class="cache-panel">

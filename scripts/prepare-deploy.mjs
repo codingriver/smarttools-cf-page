@@ -11,10 +11,15 @@ const outputDirectory = path.resolve(projectRoot, requestedOutputDirectory);
 if (outputDirectory === projectRoot || !outputDirectory.startsWith(projectRoot + path.sep)) {
   throw new Error('SMARTTOOLS_OUTPUT_DIR must stay inside the project directory');
 }
+const bookmarkMode = process.env.SMARTTOOLS_BOOKMARKS_MODE || 'legacy';
+if (!['legacy', 'maintenance', 'v2'].includes(bookmarkMode)) throw new Error('Invalid SMARTTOOLS_BOOKMARKS_MODE');
 const snapshotUrl = process.env.SMARTTOOLS_SNAPSHOT_URL || 'https://www.303066.xyz/api/data';
 
 const publicEntries = [
   '404.html',
+  'account.html',
+  'retired.html',
+  'retired-sw.js',
   '_headers',
   '_redirects',
   '_routes.json',
@@ -109,6 +114,7 @@ for (const entry of publicEntries) {
 
 // 把静态兜底 data.js 里的外部图标也下载到本地（KV 为空时的离线回退）
 try {
+  if (bookmarkMode !== 'legacy') throw new Error('Retirement build has no legacy icons');
   const dataJsPath = path.join(outputDirectory, 'data.js');
   const dataJs = await readFile(dataJsPath, 'utf8');
   await writeFile(dataJsPath, await localizeIconUrls(dataJs));
@@ -131,7 +137,7 @@ builtIndex = builtIndex.replace(
 );
 
 async function fetchInlineSnapshot() {
-  if (process.env.SMARTTOOLS_INLINE_SNAPSHOT === '0') return null;
+  if (process.env.SMARTTOOLS_INLINE_SNAPSHOT === '0' || process.env.SMARTTOOLS_BOOKMARKS_MODE === 'v2' || process.env.SMARTTOOLS_BOOKMARKS_MODE === 'maintenance') return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
@@ -190,11 +196,11 @@ async function fingerprintHtml(relativePath) {
   const htmlPath = path.join(outputDirectory, relativePath);
   let html = await readFile(htmlPath, 'utf8');
   const references = new Set(
-    [...html.matchAll(/(['"])(shared\/[A-Za-z0-9._-]+\.(?:js|css))(?:\?v=[0-9a-f]+)?\1/g)]
+    [...html.matchAll(/(['"])(\/?shared\/[A-Za-z0-9._-]+\.(?:js|css))(?:\?v=[0-9a-f]+)?\1/g)]
       .map(match => match[2])
   );
   for (const reference of references) {
-    const hash = await assetHash(reference);
+    const hash = await assetHash(reference.replace(/^\//, ''));
     const pattern = new RegExp(
       `(['"])${escapeRegExp(reference)}(?:\\?v=[0-9a-f]+)?\\1`,
       'g'
@@ -208,10 +214,22 @@ async function fingerprintHtml(relativePath) {
 const fingerprintedReferenceCount =
   (await fingerprintHtml('index.html')) +
   (await fingerprintHtml('config.html')) +
-  (await fingerprintHtml('404.html'));
+  (await fingerprintHtml('404.html')) +
+  (await fingerprintHtml('account.html')) +
+  (await fingerprintHtml('retired.html'));
 
 console.log(
   `Prepared ${publicEntries.length} public entries in ${outputDirectory} ` +
-  `with inline homepage runtime, ${fingerprintedReferenceCount} fingerprinted shared asset references` +
+  `${bookmarkMode === 'legacy' ? 'with inline homepage runtime' : 'for bookmark retirement'}, ${fingerprintedReferenceCount} fingerprinted shared asset references` +
   (snapshot ? ' and inline data snapshot' : '')
 );
+
+// A v2 release never publishes an old bookmark snapshot, even if old source files remain for rollback.
+if (['v2', 'maintenance'].includes(process.env.SMARTTOOLS_BOOKMARKS_MODE)) {
+  for (const name of ['index.html','config.html']) await cp(path.join(outputDirectory, 'retired.html'), path.join(outputDirectory, name));
+  await cp(path.join(projectRoot, 'retired-sw.js'), path.join(outputDirectory, 'sw.js'));
+  await writeFile(path.join(outputDirectory, 'data.js'), '/* Legacy bookmarks retired. */\n');
+  console.log('Bookmark retirement assets prepared; set matching BOOKMARKS_MODE on the server.');
+}
+
+await writeFile(path.join(outputDirectory, 'bookmark-mode.json'), JSON.stringify({ mode: bookmarkMode }));

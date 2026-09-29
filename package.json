@@ -8,14 +8,16 @@
     "deploy": "npm run build && npm run verify:deploy && npx wrangler@latest pages deploy dist --project-name smarttools --branch main --commit-dirty=true --skip-caching",
     "test:build": "node scripts/build-acceptance.mjs",
     "test:api": "node scripts/acceptance.mjs && node scripts/account-security-acceptance.mjs && node scripts/extension-data-acceptance.mjs",
-    "test:extension": "node scripts/extension-desktop-acceptance.mjs && node scripts/extension-drag-acceptance.mjs && node scripts/extension-layout-acceptance.mjs && node scripts/extension-sidebar-acceptance.mjs && node scripts/extension-browser-acceptance.mjs && node scripts/extension-cache-acceptance.mjs && node scripts/extension-pages-acceptance.mjs",
+    "test:extension": "node scripts/bookmarks-v2-acceptance.mjs && node scripts/extension-transfer-acceptance.mjs && node scripts/extension-desktop-acceptance.mjs && node scripts/extension-drag-acceptance.mjs && node scripts/extension-layout-acceptance.mjs && node scripts/extension-sidebar-acceptance.mjs && node scripts/extension-v2-acceptance.mjs",
     "test:extension-data": "node scripts/extension-data-acceptance.mjs",
     "test:security": "node scripts/account-security-acceptance.mjs",
     "test:browser": "node scripts/browser-acceptance.mjs && node scripts/cache-acceptance.mjs",
     "test:cache": "node scripts/cache-acceptance.mjs",
     "test:online": "node scripts/online-acceptance.mjs",
     "test:performance": "node scripts/performance-acceptance.mjs",
-    "test": "npm run test:build && npm run test:api && npm run test:browser"
+    "test": "npm run test:build && npm run test:api && npm run test:browser && npm run test:v2",
+    "test:v2": "node scripts/bookmarks-v2-acceptance.mjs && node scripts/bookmarks-retirement-acceptance.mjs",
+    "prepare:bookmarks-v2": "node scripts/prepare-bookmarks-v2.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

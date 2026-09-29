@@ -1,13 +1,13 @@
 # Permission Justification — Qiye — Bookmark Desktop 1.2.0
 
-SmartTools is self-hosted. The extension imports open tabs and provides an independent bookmark management page for the user's configured SmartTools instance.
+SmartTools is self-hosted. The extension provides an independent v2 bookmark desktop and retains tab collection/copy/export for the user's configured SmartTools instance.
 
 ## Required permissions
 - `tabs`: read titles, URLs and favicon URLs when the user imports/copies/exports tabs; locate the configured backend and reuse the extension homepage. No history API is used.
 - `scripting`: deliver the import handshake to the configured backend and dynamically register `pending-import.js` there.
 - `storage`: store the configured URL in `chrome.storage.sync` and pending import payloads in `chrome.storage.local` until acknowledged, plus per-site selected-group and cross-site desktop sidebar width UI preferences. Sidebar resizing is local-only and does not modify the bookmark cache. No password or authentication token is persisted. Full datasets use extension-origin IndexedDB, NOT chrome.storage.local.
 
-- `contextMenus`: show group/card destinations for explicit page/link/toolbar captures. No alarms, unlimitedStorage, bookmarks, cookies or notifications permission.
+- `contextMenus`: show recursive container destinations for explicit page/link/toolbar captures. No alarms, unlimitedStorage, bookmarks, cookies or notifications permission.
 
 ## Optional host permissions
 
@@ -17,7 +17,7 @@ Runtime site permission is supported for both extension-page API requests and sc
 
 ## Authentication and management
 
-Requests originate in the extension service worker through a fixed-purpose RPC restricted to exact page/action allowlists (start.html, popup.html; only exact start.html can request authenticated, version-checked saves; removed home.html has no access; static initialization must use the website backend) and target only the configured site's fixed API paths. Login credentials are sent to that site using its existing login endpoint, not to a third-party account service. HttpOnly, Secure, SameSite=Strict session cookies are managed by the browser via `credentials: include`; no `cookies` permission or token copying is used. Private is server-side access control, not encryption.
+Requests originate in the extension service worker through a fixed-purpose RPC restricted to exact page/action allowlists (start.html, popup.html; only exact start.html can request authenticated, version-checked saves; removed home.html has no access; no initialization RPC; initial migration is an offline maintenance operation) and target only the configured site's fixed API paths: existing login/check/logout and new /api/v2/bookmarks (GET/PUT), /api/v2/bookmarks/meta (GET). Old website-confirmation import UI is disabled; retained collection scopes are not redesigned. Login credentials are sent to that site using its existing login endpoint, not to a third-party account service. HttpOnly, Secure, SameSite=Strict session cookies are managed by the browser via `credentials: include`; no `cookies` permission or token copying is used. Private is server-side access control, not encryption.
 
 No `bookmarks`, `history`, or `cookies` permission is requested. The extension does not synchronize Chrome bookmarks or replace the new-tab page. Bookmark images may load from configured image URLs, and opening a bookmark contacts its destination; there are no analytics or advertising endpoints.
 

@@ -58,7 +58,7 @@ async function openBackend() {
   }
   await chrome.storage.sync.set({ configUrl });
   els.configUrl.value = configUrl;
-  await chrome.tabs.create({ url: configUrl, active: true });
+  await chrome.tabs.create({ url: new URL('/account.html', configUrl).href, active: true });
   setStatus('已打开 网站后台', 'ok');
 }
 
@@ -400,7 +400,7 @@ async function showCacheStatus(sync = false) {
   try {
     const configUrl = await getConfigUrl();
     const cached = await client('cache.get', configUrl);
-    document.getElementById('cacheStatus').textContent = cached ? `本机缓存：${cached.sections.length} 个分组 · ${new Date(cached.savedAt).toLocaleString()}` : '尚无本机缓存';
+    document.getElementById('cacheStatus').textContent = cached ? `本机缓存：${(cached.document?.roots || cached.sections || []).length} 个分组 · ${new Date(cached.savedAt).toLocaleString()}` : '尚无本机缓存';
     if (sync) {
       const result = await client('sync', configUrl);
       document.getElementById('cacheStatus').textContent = result.warning || (result.loggedIn ? '已连接云端，收藏位置已就绪' : '未登录；已有本机缓存和收藏位置仍保留');
@@ -416,3 +416,8 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync' && changes.configUrl) showCacheStatus(true);
 });
+
+// Collection/export implementations are deferred, not rewritten. Only retire the old website hand-off UI.
+for (const id of ['importActive','importCurrent','importAll']) document.getElementById(id).disabled = true;
+const importHeading = document.getElementById('importActive')?.closest('section');
+if (importHeading) importHeading.hidden = true;

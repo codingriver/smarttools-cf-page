@@ -18,7 +18,15 @@
     "/.wrangler/*",
     "/.env",
     "/.env.*",
-    "/.dev.vars"
+    "/.dev.vars",
+    "/config",
+    "/c",
+    "/sw.js",
+    "/data.js",
+    "/",
+    "/index",
+    "/index.html",
+    "/config.html"
   ],
   "exclude": []
 }

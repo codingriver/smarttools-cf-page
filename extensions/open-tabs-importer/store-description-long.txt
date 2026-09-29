@@ -1,24 +1,23 @@
 Qiye — Bookmark Desktop (栖页 · 书签桌面)
 
-Save the current page or import open tabs into your own SmartTools instance, and manage its bookmarks from an independent extension homepage.
+A bookmark desktop for your own SmartTools v2 server, with categories, nested folders and explicit cloud saves. It does not replace your browser's new-tab page.
 
 Features
-- Right-click a page, link or toolbar icon to save into a group or an existing expandable card.
-- Shared long-lived local cache, including Private, readable offline and after logout; separate clear controls.
-- Existing current-page, current-window and all-window imports, clipboard and HTML/JSON exports.
-- Built-in dark icon-desktop homepage with categories and single-level folders; it does not replace the browser new-tab page.
-- Sign in with your existing SmartTools administrator account or reuse the site's session.
-- Browse/search bookmarks and groups, manage cards and subcards, move/reorder items, and mark groups Private.
-- Explicit cloud save, unsaved-change reminders and stale-save conflict messages.
-- Keep special card types intact; advanced settings, backup and restore remain in the website backend.
+- Search and organize bookmarks in a standard icon desktop. Drag or use menus to move/reorder items; folders can nest, with cycle/depth protection.
+- Root categories and folders share stable identity, visibility and inherited Private settings. Show hidden items when organizing.
+- Sign in using your existing administrator account; saves require server authentication and version checks. Each homepage has its own unsaved draft.
+- Right-click a page, link or toolbar icon to save into a cached container. Same-location duplicate URLs are skipped; changed destinations require review.
+- Shared long-lived local cache, including Private, readable offline and after logout; separate current-site/all-sites clear controls.
+- Keep unsupported legacy content read-only for inspection/export or explicit deletion rather than silently losing fields.
+- Retain current-page/current-window/all-window tab collection, clipboard and HTML/JSON export. Old website-confirmation import is deferred and its buttons disabled in this version.
 
 Setup
-Enter your SmartTools HTTPS backend URL, approve access to that site, then open the extension homepage. The server must support structured data and version-checked saves. Imports still require confirmation and save in the website backend.
+Configure your HTTPS service address and approve that origin, then sign in. Requires the new /api/v2/bookmarks protocol and separately prepared v2 server data; no automatic online migration or legacy-write fallback. Website account security remains available, but v2 mode retires old website bookmark management.
 
 Privacy and permissions
-Required: tabs, scripting, storage, contextMenus. Optional site access is requested only for your configured SmartTools origin; no required all-sites grant or all-page content script. No Chrome native-bookmark synchronization, cookies permission or browsing-history access.
-Credentials go only to your configured SmartTools login endpoint. Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the homepage and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory. The configured site URL uses browser sync storage; pending tab imports use local storage until acknowledgement. Saved bookmarks reside on your own SmartTools server. Images can load from their configured image hosts. No analytics or ads.
+Required permissions remain tabs, scripting, storage and contextMenus; site permissions are optional and requested on demand. No Chrome bookmarks/history/cookies access, analytics or new-tab override. Passwords and Cookie tokens are not stored by the extension. Your configured URL may sync with your browser account; bookmark cache and interface preferences do not.
 
-Private means server-side access control, not encryption. Browser Cookie policies may prevent extension login; you can continue in the website backend. Cloudflare KV is eventually consistent: avoid saving from several clients simultaneously.
+Full cached data, including Private, stays in this extension's IndexedDB without proactive expiry. It is not encrypted and remains readable after logout, expiry, offline use or permission revocation. On shared devices, log out AND clear local cache. Uninstall, browser cleanup and storage failure may remove the cache. Private means server access control, not encryption. Image hosts receive ordinary image requests; clicked bookmarks contact their destinations. KV version checks detect observed conflicts but do not provide atomic multi-client locking.
 
-Desktop organization: right-click/More/keyboard menus and left-button dragging for ordering and safe cross-group/folder moves. No nested folders. Apply edits to a page-local draft, then explicitly save to cloud; conflicts preserve drafts. Search is local-only. Hidden-group management and static initialization use the full website backend. No additional permissions.
+JSON 备份：账户菜单可导出已确认的完整书签（含隐藏项和 Private，未加密），也可校验并导入 v2 JSON 为本页替换草稿；确认后仍需点击保存到云端。
+JSON backups: export the last confirmed full document (including hidden/Private data, unencrypted), or validate a v2 JSON file and confirm replacement of the local page draft before explicitly saving to your server.

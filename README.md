@@ -2,13 +2,28 @@
 
 SmartTools is a single-theme personal bookmark homepage deployed on Cloudflare Pages. It uses a clean Notion-style frontend and keeps the online admin panel, browser-tab importer extension, full import/export tools, Private sections, KV backups, and a single-admin authentication model.
 
-## Features
+## Extension-first v2 (implemented, not automatically enabled)
+
+Qiye now uses one canonical `{schemaVersion:2, updatedAt, roots}` document in KV, API responses, extension IndexedDB and page-local drafts. Root folders are categories; nested folders share stable IDs, ordered children, inherited `isPrivate`, and a display-only `visible` flag. Only the server changes the document-level timestamp on effective saves; no-op saves keep the timestamp and ETag. Unknown legacy content is preserved read-only. No new extension permissions or authentication mechanism.
+
+- New admin-only `GET/PUT /api/v2/bookmarks` and `GET /api/v2/bookmarks/meta`; full PUT requires `baseEtag` and returns the confirmed document. Existing login/check/logout and account-security protocols are unchanged.
+- `BOOKMARKS_MODE` defaults to `legacy`. `maintenance` freezes bookmark APIs (503); `v2` enables the new library and retires old bookmark endpoints (410), keeping `/account.html` for account maintenance. No implicit KV migration, dual writes, or legacy fallback.
+- Stage a reviewed, selected-source administrator export with `npm run prepare:bookmarks-v2 -- <local-file>`. By default it only validates; optional `--output <new-directory-outside-repository>` writes a private backup and candidate, never uploads. The new key is `admin:bookmarks:v2:current`. Initialize only during a separately authorized maintenance cutover; retain frozen old keys until independently approved deletion.
+- Match `SMARTTOOLS_BOOKMARKS_MODE` at build time to the server mode. Retirement builds contain no bookmark snapshot. `verify:deploy` requires `SMARTTOOLS_CONFIRMED_SERVER_MODE` for v2/maintenance; this manual assertion does not inspect production. Default legacy production checks remain in force.
+- The desktop account menu supports JSON export/import. Export downloads the last confirmed v2 document, including hidden/Private data but not drafts, as an unencrypted file. Import checks size, structure, fields, IDs, depth and safe URLs, then asks before replacing (not merging) the page draft. It requires a verified writable session, keeps the current ETag/confirmed timestamp, and does not update cloud or cache until an explicit save succeeds.
+- `npm run test:v2` tests the model/API and retirement builds/warm SW behavior; `npm run test:extension` uses synthetic data and real MV3 pages against an isolated loopback fixture server, with no production login.
+- Tab collection/copy/export is not redesigned in this release. The old website-confirmation import buttons are disabled/hidden; a new import workflow is deferred. Native right-click single-link capture uses v2.
+
+See [the complete protocol, storage and maintenance guide](BOOKMARKS_V2.md) and [extension usage](extensions/open-tabs-importer/README.md). This development does not deploy or migrate production. KV remains eventually consistent, not atomic CAS; avoid concurrent writers.
+
+## Legacy website features (`BOOKMARKS_MODE=legacy`)
+
 
 - One Notion-style homepage rendered directly at `/` with no theme router.
 - Legacy `index1` through `index5` URLs permanently redirect to the homepage.
 - `/config.html` manages sections, cards, sub-cards, contacts, and notes.
 - Basic Settings can switch sub-card expansion between Classic and the new Directory layout. Directory mode adds site icons with fallbacks, lightweight rows, a sticky Open All toolbar, and bounded internal scrolling; Classic remains the default.
-- The Chrome/Edge extension imports open tabs into the admin review workflow.
+- Earlier extension versions could import open tabs into this legacy admin review workflow; the new v2 extension defers that integration.
 - Full JSON, `data.js`, CSV, XLSX, browser-bookmark HTML, and ZIP import/export.
 - Cloudflare KV storage with manual backup, automatic backup, and restore.
 - Single-admin login with an HttpOnly, Secure, SameSite=Strict cookie.
@@ -133,45 +148,9 @@ Anonymous `/api/data` JavaScript responses are cacheable for long-lived public b
 Homepage HTML (`/` and `/index.html`) revalidates on each online navigation, including ordinary reloads. The service worker uses network-first HTML with an offline fallback and removes old SmartTools cache versions when it activates; fingerprinted shared assets remain long-lived. This prevents cached HTML with outdated inline CSS/JS from bringing back fixed layout bugs. Only public responses are stored; API/admin responses are excluded (except public icon images).
 
 
-### Extension homepage (v1.2.0)
+### Qiye extension homepage
 
-Folder contents and the category desktop use separate drag targets: dropping a child on blank desktop space extracts it as a standalone bookmark; dropping on a category moves it there. Changes remain a page-local draft until **Save to cloud**.
-
-
-**Qiye — Bookmark Desktop (栖页 · 书签桌面)** in `extensions/open-tabs-importer/` provides a single locally packaged bookmark homepage. This is an extension-only rename: existing site settings, login sessions, cached bookmarks and import protocols are retained; the SmartTools website name is unchanged. Load that directory as an unpacked MV3 extension, configure your SmartTools HTTPS backend, grant access to that site and open **打开主页**. It does not override new tabs or access Chrome's native bookmarks. The original current-page/window/all-window imports, copy and export flows remain available.
-
-The homepage (`start.html`) reuses the single administrator login and browser-managed HttpOnly/Secure/SameSite=Strict session. It supports search, group/card/subcard CRUD, move/order, Private groups, explicit cloud saves and unsaved-change reminders. Unsupported special card types stay intact/read-only; advanced settings and backups remain in the website backend. No KV means read-only; static data stays read-only in the extension. Manage hidden groups and initialize/switch to KV in the full website backend. No extension framework, remote script or eval is required.
-
-- `GET /api/data?format=structured`: actual JSON `sections`, source/configured, dataVersion/dataEtag/dataHash, hasKV, privateFiltered and siteConfig. Parses data literals without executing JavaScript; unsupported data returns 422 `UNSUPPORTED_DATA`. Anonymous output filters Private; administrator JSON uses `private, no-store`. Existing JavaScript and `format=json` contracts remain available.
-- `POST /api/save`: website and extension now send `baseEtag` and `baseSource`. An observed stale data/source baseline returns 409 `SAVE_CONFLICT` **before delta writes**, retaining the client's draft with no automatic full-save retry. Delta saves against static/fallback data return 409 `INITIALIZATION_REQUIRED`. Legacy callers without preconditions remain compatible but do not receive stale-write protection. Cloudflare KV is eventually consistent: this is not an atomic CAS/transaction; avoid simultaneous saves from multiple clients.
-- Save failure handling: section deltas are prepared in memory and persisted once, avoiding duplicate writes to the same KV keys within a single save. Storage failures return JSON `503 / SAVE_STORAGE_ERROR` with `outcomeUnknown: true`; this is not a transaction or cross-request rate-limit guarantee. Only confirmed authentication failures clear extension login state. Network timeouts, gateway 403/5xx responses and site-permission loss instead retain the draft and last verified identity while disabling edits/saves. The account panel offers a connection/cloud recheck that preserves drafts. Errors identify the endpoint/status without logging credentials or bookmark contents; uncertain writes are never automatically retried.
-
-- Permissions: tabs/scripting/storage/contextMenus plus optional access to the configured site only; no required all-sites host grant, static all-page content script, cookies/bookmarks/history permission. Site URL uses browser sync storage; pending imports use local storage. Complete administrator bookmarks, including Private, are stored per site in extension-origin IndexedDB and shared by the homepage and context menus. There is no proactive expiry or browser-account synchronization of this cache; it is not encrypted. Logout, session expiry, offline use and permission revocation retain a readable local copy, which the server cannot revoke. Separate current-site/all-sites clear controls erase cached data and affected open-page drafts. Uninstalling, browser cleanup or storage failure can lose this cache. Passwords and Cookie tokens are never persisted; unsaved drafts remain in each page’s memory. Logout also affects the same-site website session. Strict browser Cookie policies may require continuing in the website backend, not weakening Cookie flags.
-
-Tests: `npm run test:extension-data` (memory-only parser/privacy/conflicts); `npm run test:api` includes these checks; `npm run test:extension` loads the actual MV3 scripts in Chromium against isolated local Pages. Set `EXTENSION_CHROME_PATH` if needed. Headless extension tests pregrant only loopback in a temporary manifest, so native permission approve/deny/revoke and browser-specific third-party Cookie restrictions still need manual checks. See the extension README for installation, scope and privacy details. Research/test artifacts are not added to the public Pages build whitelist; extension runtime files are packaged.
-
-### Extension 1.2.0: shared durable cache and context-menu capture
-
-The homepage groups site authorization, login and cache information in a top-right account popover. Signed-out users see “登录” (Log in); signed-in users see an administrator avatar. Open it for session information, site settings, logout, last-sync time and expandable cache controls. Clicking outside or pressing Escape closes the popover; closing also clears any unsent password. Authentication and durable-cache behavior are unchanged.
-
-- Page, link and toolbar-icon menus always offer “收藏到栖页” (Save to Qiye): group → standalone card / child of an existing expandable card. With no cache, the menu offers sign-in/load. Private and hidden groups are marked.
-- Home/popup render cached data before checking session/version. Login, explicit refresh and changed versions synchronize full data; no polling. Anonymous results cannot replace an administrator cache. Clean pages follow updates; dirty pages retain drafts and show a warning.
-- Captures run serially: fresh authenticated data, stable/unique destination validation including Private status, full-URL deduplication at the chosen location, then a version/source-checked delta save. Other locations may contain the same URL. No retry, full-overwrite fallback or offline write queue.
-- Static initialization uses the full website backend; no KV means read-only. Badges and the existing popup report results, without a capture window or notification permission.
-- `npm run test:extension` loads a real MV3 extension and covers shared caching/menu handlers. Native menu interaction, permission prompts and restrictive third-party Cookie policies still require manual checks. This local extension exception does not weaken anonymous Private filtering, website HTTP/SW caches or public build snapshots.
-
-### Single built-in extension homepage
-
-The popup has one **Open homepage** (`start.html`) entry. The separate extension manager (`home.html` and its scripts/styles) has been removed, along with its RPC access. The full website backend remains available; hidden-group recovery, whole-library list browsing, backup and static-to-KV initialization belong there. No new organization mode is introduced. The homepage is an iTab-style standard icon desktop: a resizable category sidebar (180px by default; 56px to the smaller of 280px and 35% of the viewport; compact below 128px), centered clock/date and local-only search, 60px bookmark icons and single-level folder popovers. Hidden groups are omitted, including from search; cached Private groups remain readable offline/after logout. Parent links are separate from folders; search results show category/folder paths. Links open new tabs. Special types remain read-only and intact. At 390/320px the desktop uses four/three columns and a category drawer.
-
-On the desktop, use right-click, visible More buttons or Shift+F10 to add/edit/delete bookmarks, folders and groups. Left-button dragging reorders and moves safe leaf bookmarks across groups or into/out of folders. Folders cannot nest; dropping on ordinary bookmarks only reorders. Search disables dragging. Moving Private content to a public group requires confirmation. Nonempty group/folder deletion offers migration/extraction where safe. All edits first enter the current page’s memory draft; **Apply to draft** is not **Save to cloud**. Closing dirty inputs or discarding drafts requires confirmation.
-
-
-Homepage tabs and right-click menus share the same per-site confirmed IndexedDB cache; each page has its own memory draft; unsaved edits never appear in another page or the native context menu. Login, site connection and cache controls are in the shared top-right account popover. RPC authorization checks exact extension page URLs and actions; only exact trusted `start.html` pages can request `save`, with server authentication and source/version checks; query-string lookalikes, popup and content scripts cannot save. The desktop stays read-only on static/no-KV data; use the full website backend for initialization. Offline/session loss retains drafts but disables edits/saves. No new permissions, server API, framework, theme switcher or new-tab override. UI resources are local and the desktop uses system fonts (the existing OFL font/license remains in `fonts/`); reference products' application code and branding are not copied. `DESIGN.md` records the reference contract; research screenshots/test artifacts are excluded from publication.
-
-`npm run test:extension` includes real MV3 multiple-homepage-tab/cache tests, editor input guards, hidden groups/children/search, and desktop/390/320px evidence. Native permission prompts and OS context-menu interaction remain manual acceptance items. This UI change does not deploy the website or publish the extension.
-
-On the extension homepage, the account popover keeps the site address and Save address action inside collapsed-by-default Advanced settings (高级设置). Open it only for initial setup, site changes or revoked permissions; daily sign-in stays directly accessible. Save address requests site access first and persists the address only after permission is granted; denial or cancellation leaves the previous site settings unchanged. Closing the popover collapses these settings without clearing the saved site or permission.
+Use the matching v2 server and the single built-in start.html page. Browse nested containers, local path-aware search, edit/move/delete/reorder, reveal hidden containers for organization, and explicitly save memory drafts. Exact trusted homepage messages only; no native-bookmark access or new-tab override. Full Private caches remain readable after logout/offline, without expiry or encryption claims; clear them separately on shared devices. Old caches are read-only until a confirmed v2 sync. Settings, database name and existing sessions are retained.
 
 ### Extension sidebar width
 

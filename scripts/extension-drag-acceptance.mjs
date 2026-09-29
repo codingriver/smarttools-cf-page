@@ -1,14 +1,15 @@
+import { convertSections } from '../extensions/open-tabs-importer/legacy-convert.js';
 import { chromium } from 'playwright-core';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 // Real homepage modules, CSS and native mouse dragging with synthetic RPC/cache.
-// Authentication and real IndexedDB/save integration remain in extension-pages-acceptance.mjs.
+// Authentication and real IndexedDB/save integration remain in extension-v2-acceptance.mjs.
 const fixtureOrigin = 'https://extension-fixture.invalid';
 const fixture = { sections: [
   { key: 'a', kind: 'card', label: 'Daily', cards: [
-    { id: 'folder', type: 'expandable', title: 'Synthetic folder', url: 'https://example.invalid/parent', subCards: [{ id: 'leaf', type: 'compact', title: 'Synthetic child', url: 'https://example.invalid/child', custom: { retained: true } }] },
+    { id: 'folder', type: 'expandable', title: 'Synthetic folder', url: 'https://example.invalid/parent', subCards: [{ id: 'a-drop', type: 'compact', title: 'Synthetic child', url: 'https://example.invalid/child', custom: { retained: true } }] },
     ...Array.from({ length: 16 }, (_, i) => ({ id: 'c' + i, title: 'Bookmark ' + i, url: 'https://example.invalid/' + i }))
   ] }, { key: 'b', kind: 'card', label: 'Work', cards: [] }
 ], dataEtag: 'synthetic-version', source: 'kv', configured: 'kv', hasKV: true, privateFiltered: false, savedAt: 1 };
@@ -18,6 +19,7 @@ try {
   for (const destination of ['desktop', 'same-category', 'other-category', 'folder-end']) {
     const snapshot = structuredClone(fixture);
     if (destination === 'folder-end') snapshot.sections[0].cards[0].subCards.push({ id: 'second', title: 'Second child', url: 'https://example.invalid/second' });
+    Object.assign(snapshot, { schema:2, document:convertSections(snapshot.sections), etag:snapshot.dataEtag }); delete snapshot.sections;
     const page = await browser.newPage({ viewport: { width: 1510, height: 720 } });
     page.setDefaultTimeout(5000);
     page.on('pageerror', error => errors.push(error.message));
@@ -38,7 +40,7 @@ try {
           if (message.action === 'cache.get') return { ok: true, value: structuredClone(confirmedFixture) };
           if (message.action === 'save') {
             fixtureSaves.push(structuredClone(message));
-            confirmedFixture = { ...confirmedFixture, sections: structuredClone(message.sections), dataEtag: 'saved-version' };
+            confirmedFixture = { ...confirmedFixture, document: structuredClone(message.document), etag: 'saved-version' };
           }
           return { ok: true, value: { saved: message.action === 'save', loggedIn: true, snapshot: structuredClone(confirmedFixture) } };
         } },
@@ -77,13 +79,13 @@ try {
     await page.waitForTimeout(300);
     await page.locator('#save').click(); await page.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
     const saved = await page.evaluate(() => fixtureSaves);
-    assert.equal(saved.length, 1); assert.equal(saved[0].baseEtag, snapshot.dataEtag); assert.equal(saved[0].baseSource, 'kv');
-    const parent = saved[0].sections[0].cards.find(card => card.id === 'folder');
+    assert.equal(saved.length, 1); assert.equal(saved[0].baseEtag, snapshot.dataEtag); assert.equal(saved[0].baseSource, undefined);
+    const parent = saved[0].document.roots[0].children.find(card => card.id === 'folder');
     assert.equal(parent.url, 'https://example.invalid/parent');
-    const moved = destination === 'folder-end' ? parent.subCards.at(-1) : saved[0].sections[destination === 'other-category' ? 1 : 0].cards.at(-1);
-    assert.equal(moved.id, 'leaf'); assert.equal(moved.url, 'https://example.invalid/child'); assert.deepEqual(moved.custom, { retained: true });
-    assert.equal(moved.type, destination === 'folder-end' ? 'compact' : 'simple');
-    assert.equal(parent.subCards.length, destination === 'folder-end' ? 2 : 0);
+    const moved = destination === 'folder-end' ? parent.children.at(-1) : saved[0].document.roots[destination === 'other-category' ? 1 : 0].children.at(-1);
+    assert.equal(moved.id, 'a-drop'); assert.equal(moved.url, 'https://example.invalid/child'); assert.deepEqual(moved.extensions.legacy.custom, { retained: true });
+    assert.equal(moved.type, 'bookmark');
+    assert.equal(parent.children.length, destination === 'folder-end' ? 2 : 0);
     await page.close();
   }
   assert.deepEqual(errors, []);

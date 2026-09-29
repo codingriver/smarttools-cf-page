@@ -1,1 +1,1 @@
-Qiye bookmark desktop, editing, right-click capture and open-tab imports.
+栖页书签桌面：连接自己的 v2 书签站点，分类与多层文件夹、右键收藏、长期本机缓存及显式云端保存。

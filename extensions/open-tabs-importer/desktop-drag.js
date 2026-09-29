@@ -20,21 +20,21 @@ export function bindDesktopDrag({ state, editable, searching, resolve, changed, 
     if (source.group) {
       if (!ref.group || source.section === ref.section) return;
       const after = event.clientY > rect.top + rect.height / 2;
-      target = { group: true, before: after ? state.sections[state.sections.indexOf(ref.section) + 1] || null : ref.section };
+      target = { group: true, before: after ? state.document.roots[state.document.roots.indexOf(ref.section) + 1] || null : ref.section };
       style = after ? 'drop-after' : 'drop-before';
     } else {
       let to = { section: ref.section, parent: ref.parent || null }, before = null;
       if (ref.card) {
         const center = event.clientX > rect.left + rect.width * .25 && event.clientX < rect.right - rect.width * .25;
-        if (ref.card.type === 'expandable' && center && ref.card !== source.card) to.parent = ref.card;
+        if (ref.card.type === 'folder' && center && ref.card !== source.card) to.parent = ref.card;
         else {
-          const items = ref.parent ? ref.parent.subCards : ref.section.cards;
+          const items = ref.parent ? ref.parent.children : ref.section.children;
           const after = event.clientX > rect.left + rect.width / 2;
           before = after ? items[items.indexOf(ref.card) + 1] || null : ref.card;
           style = after ? 'drop-after' : 'drop-before';
         }
       }
-      if (!canMove(source.section, source.card, source.parent, to)) { style = 'drop-invalid'; event.dataTransfer.dropEffect = 'none'; }
+      if (!canMove(state.document, source.card, to)) { style = 'drop-invalid'; event.dataTransfer.dropEffect = 'none'; }
       else target = { to, before };
     }
     highlight = node; highlight.classList.add(style); event.dataTransfer.dropEffect = target ? 'move' : 'none';
@@ -48,7 +48,7 @@ export function bindDesktopDrag({ state, editable, searching, resolve, changed, 
     event.preventDefault(); const from = source, dest = target; cancel();
     if (!dest || !editable() || searching()) return;
     try {
-      const didMove = dest.group ? reorderBefore(state.sections, from.section, dest.before) : moveItem(state.sections, from.section, from.card, from.parent, dest.to, dest.before);
+      const didMove = dest.group ? reorderBefore(state.document.roots, from.section, dest.before) : moveItem(state.document, from.card, dest.to, dest.before);
       if (didMove) { if (!dest.group) onMoved(dest.to); changed(); }
     } catch (error) { report(error.message, true); }
   });

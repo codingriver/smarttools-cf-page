@@ -19,5 +19,5 @@ export function applyClientError(state, error) {
 }
 export function sessionLabel(state) {
   if (state.connectionIssue) return (state.loggedIn ? '已登录（上次验证）' : '会话待验证') + ' · 连接异常，暂时只读';
-  return state.loggedIn ? '管理员会话 · ' + (state.source || '') : '未登录 · 本机缓存／公开数据只读';
+  return state.loggedIn ? '管理员会话 · ' + (state.source || '') : '未登录 · 本机缓存只读';
 }

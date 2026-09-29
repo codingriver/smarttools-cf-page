@@ -108,7 +108,7 @@ assert(index.includes("updateViaCache: 'none'"), 'service worker update must byp
 
 assert(/\/shared\/\*\s+Cache-Control: public, max-age=31536000, immutable/.test(headers), 'shared immutable cache rule missing');
 assert(/\/extensions\/\*\s+Cache-Control: public, max-age=31536000, immutable/.test(headers), 'extensions immutable cache rule missing');
-assert(!routes.include.includes('/*') && !routes.include.includes('/'), 'homepage is still routed through Pages Functions');
+assert(!routes.include.includes('/*') && routes.include.includes('/') && routes.include.includes('/sw.js'), 'retirement mode requires exact homepage and SW routes');
 assert(dataFunction.includes('public, max-age=31536000, s-maxage=86400, stale-while-revalidate=31536000'), 'public data cache policy is not optimized');
 assert(extensionPopupHtml.includes('id="importActive"') && extensionPopupHtml.includes('收藏当前页'), 'current-page import button missing from extension popup');
 assert(extensionPopupJs.includes("query = { active: true, currentWindow: true }"), 'current-page import does not query only the active tab');
@@ -130,7 +130,7 @@ for (const [file, expected] of [
 ]) assert((await fs.readFile(path.join(extensionDirectory, file), 'utf8')).includes(expected), 'rename compatibility: ' + file);
 
 assert(JSON.stringify(extensionManifest.permissions) === JSON.stringify(['tabs', 'scripting', 'storage', 'contextMenus']), 'extension permission mismatch');
-for (const file of ['start.html', 'start.js', 'start.css', 'draft-actions.js', 'library-editing.js', 'editor-dialog.js', 'desktop-drag.js', 'sidebar-resize.js', 'account-component.js', 'account.css', 'navigation.js', 'view-utils.js', 'fonts/FjallaOne-Regular.ttf', 'fonts/OFL.txt', 'client.js', 'cache-db.js', 'cache-controller.js', 'menu-model.js', 'model.js', 'site.js']) {
+for (const file of ['bookmark-document.js', 'legacy-convert.js', 'start.html', 'start.js', 'start.css', 'draft-actions.js', 'library-editing.js', 'editor-dialog.js', 'desktop-drag.js', 'sidebar-resize.js', 'account-component.js', 'account.css', 'navigation.js', 'view-utils.js', 'fonts/FjallaOne-Regular.ttf', 'fonts/OFL.txt', 'client.js', 'cache-db.js', 'cache-controller.js', 'menu-model.js', 'model.js', 'site.js']) {
   assert((await fs.stat(path.join(extensionDirectory, file))).isFile(), `missing local extension resource: ${file}`);
 }
 for (const obsolete of ['home.html', 'home.js', 'home.css']) {
@@ -160,7 +160,7 @@ console.log(JSON.stringify({
   fingerprintedAssets: 6,
   immutableCacheRules: 2,
   currentPageImportButton: true,
-  homepageStaticRoute: true,
+  homepageModeGuard: true,
   publicDataCacheInvalidation: true,
   accountSecurityUi: true,
   sensitiveLogging: false

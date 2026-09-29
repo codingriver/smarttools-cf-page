@@ -9,3 +9,5 @@
 .site-settings{margin-top:16px}.connection:has(#loginForm[hidden]) .site-settings{margin-top:0}.site-settings>summary{cursor:pointer;font-size:12px;color:var(--muted)}.site-settings>summary:hover{color:var(--text)}.site-settings-panel{padding-top:12px}.site-settings-panel p{margin:0 0 12px;font-size:11px;line-height:1.6;color:var(--muted)}
 .cache-status{border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:11px;overflow-wrap:anywhere}.cache-menu{margin-top:10px}.cache-menu summary{cursor:pointer;color:var(--text);font-size:12px}.cache-panel{padding-top:10px}.cache-panel p{margin:0 0 12px}.cache-actions{display:flex;flex-wrap:wrap;gap:8px}.cache-actions button{font-size:11px}
 @media(max-width:600px){.account-menu:has(#accountAvatar:not([hidden])) #accountLabel{display:none}.account-panel{width:calc(100vw - 24px)}}
+
+.bookmark-transfer{border-top:1px solid var(--line);padding:14px 0;font-size:12px}.bookmark-transfer strong{display:block;margin-bottom:10px}.bookmark-transfer p{margin:10px 0 0;font-size:11px;line-height:1.6;color:var(--muted);overflow-wrap:anywhere}

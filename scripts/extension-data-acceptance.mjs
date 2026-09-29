@@ -6,7 +6,18 @@ import { structuredSections } from '../functions/_shared/structured-data.js';
 import { onRequestGet as data } from '../functions/api/data.js';
 import { onRequestPost as save } from '../functions/api/save.js';
 import { createToken } from '../functions/_shared/auth.js';
-import { deltaPayload, matches, reorder, safeUrl } from '../extensions/open-tabs-importer/model.js';
+import { matches, reorder, safeUrl } from '../extensions/open-tabs-importer/model.js';
+
+// Exercise the frozen legacy HTTP contract without depending on the v2 extension model.
+function deltaPayload(baseline, current) {
+  const metadata = ({ cards, ...meta }) => meta;
+  const previous = new Map(baseline.map(s => [s.key, JSON.stringify(s)]));
+  return {
+    mode: 'sections', sectionsMeta: current.map(metadata),
+    changedSections: current.filter(s => previous.get(s.key) !== JSON.stringify(s)).map(s => ({ key: s.key, meta: metadata(s), cards: s.cards })),
+    deletedSectionKeys: baseline.filter(s => !current.some(c => c.key === s.key)).map(s => s.key)
+  };
+}
 
 class MemoryKV {
   values = new Map(); writes = 0; saveKeys = null;
@@ -86,6 +97,6 @@ assert.equal(failedSave.response.headers.get('set-cookie'), null);
 env.FAV_KV.put = originalPut; env.FAV_KV.values = cleanValues;
 await env.FAV_KV.put('admin:data_source', 'static'); count = env.FAV_KV.writes;
 assert.equal((await post({ content: source(initial), baseEtag: current.body.dataEtag, baseSource: 'kv' })).response.status, 409); assert.equal(env.FAV_KV.writes, count);
-assert(matches(initial[0].cards[0], 'needle')); const ordered = [1, 2]; assert(reorder(ordered, 0, 1)); assert.deepEqual(ordered, [2, 1]); assert(!reorder(ordered, 1, 1));
+assert(matches({ type: 'folder', title: 'folder', children: [{ type: 'bookmark', title: 'needle', url: '/relative' }] }, 'needle')); const ordered = [1, 2]; assert(reorder(ordered, 0, 1)); assert.deepEqual(ordered, [2, 1]); assert(!reorder(ordered, 1, 1));
 assert.equal(safeUrl('javascript:alert(1)', 'https://fixture.invalid'), null); assert.equal(safeUrl('/path', 'https://fixture.invalid'), 'https://fixture.invalid/path');
 console.log(JSON.stringify({ ok: true, singleWritePerKeyPerSave: true, storageFailureJsonNotLogout: true, safeLiteralParser: true, structuredPrivacy: true, staticInitialization: true, staleDeltaAndFullSaveRejectedBeforeWrites: true, unknownFieldsPreserved: true, sourceConflict: true, draftModel: true }));
