@@ -9,12 +9,12 @@ export function mountAccount(host) {
           <form id="loginForm"><label for="username">管理员账号</label><input id="username" autocomplete="username" placeholder="用户名" required><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" placeholder="管理员密码" required><button class="primary">登录</button></form>
           <details id="siteSettings" class="site-settings"><summary>高级设置</summary><div class="site-settings-panel">
             <p class="muted">仅首次连接、更换站点或权限失效时需要配置，日常登录无需重复授权。点击保存地址时自动申请站点访问权限，通过后才保存；拒绝或取消则不保存。</p>
-          <form id="siteForm"><label for="siteUrl">服务端地址</label><input id="siteUrl" type="url" required placeholder="https://your-site/config.html"><button>保存地址</button></form>
+          <form id="siteForm"><label for="siteUrl">服务端地址</label><input id="siteUrl" type="url" required placeholder="https://your-site.example"><button>保存地址</button></form>
           </div></details>
         </section>
         <button id="checkConnection" type="button" hidden>检查连接与云端（保留草稿）</button>
-        <section class="bookmark-transfer" aria-label="书签 JSON 备份">
-          <strong>书签备份</strong>
+        <section class="bookmark-transfer" aria-label="书签 JSON 导入导出">
+          <strong>手动导出与导入</strong>
           <div class="cache-actions"><button id="exportBookmarks" type="button" disabled>导出 JSON</button><button id="importBookmarks" type="button" disabled>导入 JSON</button></div>
           <p id="transferHint">导出已确认数据（含 Private，未加密），不含草稿。导入需登录并加载可写版本，只替换本页草稿，不立即保存。</p>
           <input id="bookmarkFile" type="file" accept=".json,application/json" aria-label="选择书签 JSON 文件" hidden>

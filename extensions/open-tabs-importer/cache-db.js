@@ -34,12 +34,7 @@ export function validSnapshot(value, site) {
 }
 export async function readSnapshot(site) {
   const value = await transaction('documents', 'readonly', store => store.get(site));
-  if (value === undefined) {
-    const legacy = await transaction('snapshots', 'readonly', store => store.get(site));
-    if (!legacy) return null;
-    if (legacy.schema !== 1 || legacy.site !== site || legacy.privateFiltered !== false || !Array.isArray(legacy.sections)) throw new Error('旧版本机缓存损坏，请联网刷新或清除');
-    return { ...legacy, legacy: true }; // Only read-only conversion in the page; never uploaded.
-  }
+  if (value === undefined) return null;
   if (!validSnapshot(value, site)) throw new Error('本机缓存格式损坏，请联网刷新或清除缓存');
   return value;
 }

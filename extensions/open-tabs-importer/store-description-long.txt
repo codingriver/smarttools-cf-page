@@ -9,15 +9,17 @@ Features
 - Right-click a page, link or toolbar icon to save into a cached container. Same-location duplicate URLs are skipped; changed destinations require review.
 - Shared long-lived local cache, including Private, readable offline and after logout; separate current-site/all-sites clear controls.
 - Keep unsupported legacy content read-only for inspection/export or explicit deletion rather than silently losing fields.
-- Retain current-page/current-window/all-window tab collection, clipboard and HTML/JSON export. Old website-confirmation import is deferred and its buttons disabled in this version.
+- Retain current-page/current-window/all-window tab collection, clipboard and HTML/JSON export. Website-confirmation import and the website frontend have been removed.
 
 Setup
-Configure your HTTPS service address and approve that origin, then sign in. Requires the new /api/v2/bookmarks protocol and separately prepared v2 server data; no automatic online migration or legacy-write fallback. The website account page is a static server-configuration guide; password changes are made by updating the server PASSWORD Secret and redeploying. A missing PASSWORD enables an insecure public default and is flagged when signed in. Old account protocols are retired.
+Configure your HTTPS service address and approve that origin, then sign in. Requires the new /api/v2/bookmarks protocol and separately prepared v2 server data; no automatic online migration or legacy-write fallback. Password changes are made by updating the server PASSWORD Secret and redeploying. A missing PASSWORD enables an insecure public default and is flagged when signed in. Old account protocols and website paths return JSON 404.
 
 Privacy and permissions
-Required permissions remain tabs, scripting, storage and contextMenus; site permissions are optional and requested on demand. No Chrome bookmarks/history/cookies access, analytics or new-tab override. Passwords and Cookie tokens are not stored by the extension. Your configured URL may sync with your browser account; bookmark cache and interface preferences do not.
+Required permissions remain tabs, storage and contextMenus; site permissions are optional and requested on demand. No Chrome bookmarks/history/cookies access, analytics or new-tab override. Passwords and Cookie tokens are not stored by the extension. Your configured URL may sync with your browser account; bookmark cache and interface preferences do not.
 
 Full cached data, including Private, stays in this extension's IndexedDB without proactive expiry. It is not encrypted and remains readable after logout, expiry, offline use or permission revocation. On shared devices, log out AND clear local cache. Uninstall, browser cleanup and storage failure may remove the cache. Private means server access control, not encryption. Image hosts receive ordinary image requests; clicked bookmarks contact their destinations. KV version checks detect observed conflicts but do not provide atomic multi-client locking.
 
 JSON 备份：账户菜单可导出已确认的完整书签（含隐藏项和 Private，未加密），也可校验并导入 v2 JSON 为本页替换草稿；确认后仍需点击保存到云端。
-JSON backups: export the last confirmed full document (including hidden/Private data, unencrypted), or validate a v2 JSON file and confirm replacement of the local page draft before explicitly saving to your server.
+Manual JSON copies: export the last confirmed full document (including hidden/Private data, unencrypted), or validate a v2 JSON file and confirm replacement of the local page draft before explicitly saving to your server.
+
+Cloud service keeps only the current document: no automatic server backup, version history or restore. Keep exported JSON yourself.

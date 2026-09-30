@@ -34,8 +34,8 @@ for (const sendMessage of [async () => undefined, async () => { throw new Error(
 // Saving a site must not mutate settings or imports until permission is granted.
 for (const outcome of ['granted', 'denied', 'error']) {
   const oldUrl = 'https://old.example.invalid/config.html';
-  const newUrl = 'https://new.example.invalid/config.html';
-  let savedUrl = oldUrl, pendingImport = true, registrationUpdates = 0, settle;
+  const newUrl = 'https://new.example.invalid/';
+  let savedUrl = oldUrl, settle;
   const events = [];
   globalThis.chrome = {
     permissions: { request: ({ origins }) => {
@@ -45,21 +45,20 @@ for (const outcome of ['granted', 'denied', 'error']) {
     } },
     storage: {
       sync: { get: async () => { events.push('read'); return { configUrl: savedUrl }; }, set: async data => { events.push('save'); savedUrl = data.configUrl; } },
-      local: { remove: async key => { assert.equal(key, 'pendingOpenTabsImport'); pendingImport = false; } }
     },
-    runtime: { sendMessage: async message => { assert.equal(message.action, 'refresh-import-registration'); registrationUpdates++; } }
+    runtime: {}
   };
   const saving = authorizeSite(newUrl);
   assert.deepEqual(events, ['permission'], 'permission requested immediately; storage untouched while awaiting consent');
-  assert.equal(savedUrl, oldUrl); assert.equal(pendingImport, true);
+  assert.equal(savedUrl, oldUrl);
   settle();
   if (outcome === 'granted') {
     assert.equal(await saving, newUrl); assert.equal(savedUrl, newUrl);
-    assert.equal(pendingImport, false); assert.equal(registrationUpdates, 1);
+
     assert.deepEqual(events, ['permission', 'read', 'save']);
   } else {
     await assert.rejects(saving, outcome === 'error' ? /Synthetic permission error/ : /地址未保存/);
-    assert.equal(savedUrl, oldUrl); assert.equal(pendingImport, true); assert.equal(registrationUpdates, 0);
+    assert.equal(savedUrl, oldUrl);
     assert.deepEqual(events, ['permission']);
   }
 }

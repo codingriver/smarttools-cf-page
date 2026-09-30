@@ -13,20 +13,10 @@
     <section class="group">
       <label class="field">
         <span>服务端地址</span>
-        <input id="configUrl" type="url" placeholder="https://your-domain/config.html">
+        <input id="configUrl" type="url" placeholder="https://your-domain">
       </label>
       <div class="url-btn-row">
         <button id="saveUrl" class="url-btn" type="button">保存地址</button>
-        <button id="openBackend" class="url-btn" type="button">服务端配置说明</button>
-      </div>
-    </section>
-
-    <section class="group">
-      <h2>发送标签到后台确认导入</h2>
-      <button id="importActive" class="primary-action" type="button">收藏当前页</button>
-      <div class="btn-row">
-        <button id="importCurrent" type="button">当前窗口标签</button>
-        <button id="importAll" type="button">所有窗口标签</button>
       </div>
     </section>
 
@@ -70,7 +60,7 @@
 
     <p id="cacheStatus" class="hint"></p><p id="captureStatus" class="status" role="status"></p>
     <p id="status" class="status"></p>
-    <p class="hint">标签采集及导出保持原样；旧网站导入入口停用，新版导入留待后续版本。</p>
+    <p class="hint">标签复制与文件导出不需要登录；云端书签管理请打开主页。</p>
   </main>
   <script type="module" src="popup.js"></script>
 </body>

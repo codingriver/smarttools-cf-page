@@ -54,7 +54,23 @@ try {
  await first.getByRole('button',{name:'Private · Private',exact:true}).waitFor();await idle(first);await first.keyboard.press('Escape');
  assert.equal((await snap(first)).document.schemaVersion,2);
  // The popup consumes the same canonical document, not the removed sections wrapper.
- const popup=await context.newPage();await popup.goto(extension+'popup.html');await popup.locator('#cacheStatus').filter({hasText:/已连接云端/}).waitFor();assert(!(await popup.locator('#cacheStatus').innerText()).includes('undefined'));assert(await popup.locator('#importActive').isDisabled());await popup.close();await first.bringToFront();await idle(first);
+ const tab=await context.newPage();await tab.goto(base+'/synthetic-tab');
+ const popup=await context.newPage();await popup.addInitScript(()=>{globalThis.__copied=[];Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{globalThis.__copied.push(text);}},configurable:true});});await popup.goto(extension+'popup.html');await popup.locator('#cacheStatus').filter({hasText:/已连接云端/}).waitFor();assert(!(await popup.locator('#cacheStatus').innerText()).includes('undefined'));assert.equal(await popup.locator('#importActive').count(),0);
+ for (const button of ['#copyCurrent','#copyAll']) {
+  await popup.locator(button).click();await popup.locator('#status').filter({hasText:/已复制/}).waitFor();
+  assert(JSON.parse(await popup.evaluate(()=>globalThis.__copied.at(-1))).some(item=>item.url===base+'/synthetic-tab'));
+ }
+ await popup.locator('#copyTextCurrent').click();await popup.locator('#status').filter({hasText:/仅 URL|文本/}).waitFor();
+ assert((await popup.evaluate(()=>globalThis.__copied.at(-1))).includes(base+'/synthetic-tab'));
+ for (const [button, suffix] of [['#exportCurrentFile','.html'],['#exportJsonCurrent','.json']]) {
+  const [download]=await Promise.all([popup.waitForEvent('download'),popup.locator(button).click()]);
+  assert(download.suggestedFilename().startsWith('qiye-tabs-'));assert(download.suggestedFilename().endsWith(suffix));
+  const contents=await readFile(await download.path(),'utf8');
+  assert(contents.includes(base+'/synthetic-tab'));
+  if(suffix==='.json') assert(Array.isArray(JSON.parse(contents)));
+  else assert(contents.includes('NETSCAPE-Bookmark-file-1'));
+ }
+ await popup.close();await tab.close();await first.bringToFront();await idle(first);
 
  const cookies=await context.cookies();const auth=cookies.find(c=>c.name==='auth');assert(auth?.httpOnly&&auth.secure&&auth.sameSite==='Strict');
  const second=await context.newPage();await second.goto(extension+'start.html');await second.locator('#addGroup:not([disabled])').waitFor();await idle(second);
@@ -102,7 +118,7 @@ try {
  // Same browser profile restart while disconnected restores the full local copy, not auth.
  await context.close();mode='offline';context=await launch();track();const restored=await context.newPage();await restored.goto(extension+'start.html');await restored.getByRole('button',{name:'Private · Private',exact:true}).waitFor();assert(await restored.locator('#addGroup').isDisabled());
  const cleared=await rpc(restored,'cache.clear',{all:true});assert(cleared.ok);assert.equal(await snap(restored),null);
- // Actual IndexedDB stores: legacy snapshots remain read-only until atomic confirmation succeeds.
+ // Old IndexedDB snapshots are never read or migrated; v2 documents remain available.
  const restarted=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
  const oldSite=base, otherSite='https://second.example.invalid';
  await restarted.evaluate(async({site,other,document})=>{
@@ -110,7 +126,7 @@ try {
    await new Promise((resolve,reject)=>{const tx=db.transaction('snapshots','readwrite');tx.objectStore('snapshots').put({schema:1,site,privateFiltered:false,sections:[{key:'old-private',label:'Old private',private:true,cards:[]}]});tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();
    await fixtureAPI.writeSnapshot({schema:2,site:other,document,etag:'"other"',savedAt:1});
  },{site:oldSite,other:otherSite,document:fixture()});
- const old=await snap(restored);assert.equal(old.legacy,true);await restored.reload();await idle(restored);assert(await restored.getByRole('button',{name:'Old private · Private',exact:true}).isVisible());assert(await restored.locator('#addGroup').isDisabled());
+ const old=await snap(restored);assert.equal(old,null);await restored.reload();await idle(restored);assert.equal(await restored.getByRole('button',{name:'Old private · Private',exact:true}).count(),0);
  await restarted.evaluate(async({site,document})=>fixtureAPI.writeSnapshot({schema:2,site,document,etag:'"upgraded"',savedAt:1}),{site:base,document:fixture()});
  assert.equal((await snap(restored)).schema,2);
  const leftover=await restarted.evaluate(async site=>{const db=await new Promise(resolve=>{const r=indexedDB.open('smarttools-confirmed-cache',2);r.onsuccess=()=>resolve(r.result);});const result=await new Promise(resolve=>{const r=db.transaction('snapshots').objectStore('snapshots').get(site);r.onsuccess=()=>resolve(r.result);});db.close();return result;},base);assert.equal(leftover,undefined);
@@ -123,5 +139,5 @@ try {
  await rpc(restored,'cache.clear',{all:true,configUrl:otherSite+'/config.html'});
  assert.equal(await restarted.evaluate(site=>fixtureAPI.readSnapshot(site),otherSite),null);
  assert.deepEqual(errors,[]);
- console.log('PASS real MV3: JSON import/export/save isolation and file-read guards, Cookie login, recursive search/folders, shared confirmed cache, independent drafts/conflict, menu capture/dedupe, offline/logout/restart/clear, legacy IDB upgrade, per-site isolation, invalid response/permission guards, whitelist and responsive layout');
+ console.log('PASS real MV3: popup copy with synthetic clipboard and HTML/JSON downloads, JSON import/export/save isolation and file-read guards, Cookie login, recursive search/folders, shared confirmed cache, independent drafts/conflict, menu capture/dedupe, offline/logout/restart/clear, legacy IDB ignored and cleared, per-site isolation, invalid response/permission guards, whitelist and responsive layout');
 } finally {await context.close();await new Promise(resolve=>server.close(resolve));}

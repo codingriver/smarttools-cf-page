@@ -16,7 +16,7 @@ try {
   await page.addScriptTag({ type: 'module', content: (await readFile(root + 'account-component.js', 'utf8')) + (await readFile(root + 'cache-menu.js', 'utf8')) + `
     mountAccount(document.querySelector('#accountHost'));
     bindCacheMenu(document.querySelector('#accountMenu'));
-    window.renderFixture = loggedIn => renderAccountMenu(document.querySelector('#accountMenu'), { loggedIn, busy: false });
+    window.renderFixture = (loggedIn, usesDefaultPassword = false) => renderAccountMenu(document.querySelector('#accountMenu'), { loggedIn, busy: false, usesDefaultPassword });
   ` });
   await mkdir('.wrangler/extension-layout', { recursive: true });
   for (const width of [1280, 1047, 820, 390, 320]) {
@@ -49,6 +49,12 @@ try {
       assert(trigger.x + trigger.width > width - 45, 'account entry is at the right edge');
       await page.locator('#accountTrigger').focus();
       await page.keyboard.press('Enter');
+      if (loggedIn && width === 1280) {
+        await page.evaluate(() => window.renderFixture(true, true));
+        assert(await page.locator('#defaultPasswordWarning').isVisible(), 'default-password warning shown when signed in with the public default');
+        await page.evaluate(() => window.renderFixture(true));
+        assert.equal(await page.locator('#defaultPasswordWarning').isVisible(), false);
+      }
       assert.equal(await page.locator('#siteUrl').isVisible(), false, 'site setup is hidden even when account is open');
       assert.equal(await page.locator('#siteSettings').evaluate(el => el.open), false);
       assert.equal(await page.locator('#loginForm').isVisible(), !loggedIn);

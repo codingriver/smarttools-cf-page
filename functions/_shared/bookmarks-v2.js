@@ -1,19 +1,16 @@
 import { requireV2Auth, authReply } from './auth-v2.js';
 import { validateDocument, businessContent, MAX_BYTES } from '../../extensions/open-tabs-importer/bookmark-document.js';
 export const CURRENT_KEY = 'admin:bookmarks:v2:current';
-export const BACKUP_PREFIX = 'admin:bookmarks:v2:backup:';
-export const bookmarksMode = env => ['legacy', 'maintenance', 'v2'].includes(env.BOOKMARKS_MODE) ? env.BOOKMARKS_MODE : env.BOOKMARKS_MODE ? 'maintenance' : 'legacy';
 export const reply = (body, status = 200) => authReply(body, status);
 export async function authorize(request, env) {
   const auth = await requireV2Auth(request, env);
   if (auth) { const response = new Response(auth.body, auth); response.headers.set('Cache-Control', 'private, no-store'); return response; }
-  if (bookmarksMode(env) !== 'v2') return reply({ ok: false, code: 'BOOKMARKS_UNAVAILABLE', error: '新书签协议尚未启用或正在维护' }, 503);
   if (!env.FAV_KV) return reply({ ok: false, code: 'KV_UNAVAILABLE', error: '未绑定 KV，不能读取或保存书签' }, 503);
   return null;
 }
 export async function readCurrent(env) {
   const raw = await env.FAV_KV.get(CURRENT_KEY);
-  if (!raw) throw Object.assign(new Error('新书签库尚未初始化，请先完成维护迁移'), { status: 409, code: 'BOOKMARKS_UNINITIALIZED' });
+  if (!raw) throw Object.assign(new Error('书签库尚未初始化，请先导入 v2 初始化文档'), { status: 409, code: 'BOOKMARKS_UNINITIALIZED' });
   const value = JSON.parse(raw);
   try { validateDocument(value?.document); } catch { throw new Error('Invalid stored document'); }
   if (typeof value.etag !== 'string' || !/^"[^"\r\n]+"$/.test(value.etag)) throw new Error('Invalid stored revision');
@@ -21,12 +18,6 @@ export async function readCurrent(env) {
 }
 export function envelope(value, extra = {}) {
   return { ok: true, ...extra, document: value.document, meta: { etag: value.etag, source: 'kv', view: 'admin' } };
-}
-async function prune(kv) {
-  let cursor, keys = [];
-  do { const result = await kv.list({ prefix: BACKUP_PREFIX, ...(cursor ? { cursor } : {}) }); keys.push(...result.keys); cursor = result.list_complete ? null : result.cursor; } while (cursor);
-  keys.sort((a, b) => b.name.localeCompare(a.name));
-  for (const key of keys.slice(30)) await kv.delete(key.name);
 }
 export async function readBody(request) {
   if (Number(request.headers.get('Content-Length')) > MAX_BYTES + 65536) throw Object.assign(new Error('请求过大'), { status: 413, code: 'DOCUMENT_TOO_LARGE' });
@@ -54,12 +45,9 @@ export async function handleBookmarks({ request, env }, metaOnly = false) {
     document.updatedAt = Math.max(Date.now(), current.document.updatedAt + 1);
     const next = { document, etag: '"' + crypto.randomUUID() + '"' };
     if ((await readCurrent(env)).etag !== current.etag) return reply({ ok: false, code: 'SAVE_CONFLICT', error: '云端版本已变化；草稿保留' }, 409);
-    await env.FAV_KV.put(BACKUP_PREFIX + String(current.document.updatedAt).padStart(16, '0') + ':' + current.etag.replaceAll('"', ''), JSON.stringify(current));
     attempted = true;
     await env.FAV_KV.put(CURRENT_KEY, JSON.stringify(next));
-    let warning;
-    try { await prune(env.FAV_KV); } catch { warning = '云端已保存；旧备份清理未完成'; }
-    return reply(envelope(next, { unchanged: false, ...(warning ? { warning } : {}) }));
+    return reply(envelope(next, { unchanged: false }));
   } catch (error) {
     const status = error.status || 503;
     return reply({ ok: false, code: error.code || 'BOOKMARKS_STORAGE_ERROR', error: error.status ? error.message : '书签存储暂时不可用，请保留草稿并核对云端', ...(attempted ? { outcomeUnknown: true } : {}) }, status);

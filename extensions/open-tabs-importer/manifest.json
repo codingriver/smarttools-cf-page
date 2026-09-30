@@ -5,7 +5,6 @@
   "description": "Qiye — Bookmark Desktop: organize nested bookmark folders, keep a private local copy, and explicitly save to your v2 server.",
   "permissions": [
     "tabs",
-    "scripting",
     "storage",
     "contextMenus"
   ],

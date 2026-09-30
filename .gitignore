@@ -30,7 +30,7 @@ playwright-report/
 .vite/
 *.tsbuildinfo
 
-# 数据备份(本地导出的归档,可能含真实卡片数据)
+# 本机手动导出文件（可能含 Private；不提交仓库）
 databak/*.js
 databak/*.zip
 !databak/.gitkeep
@@ -55,3 +55,6 @@ archive_*.zip
 *.swo
 *~
 /screenshot
+
+# 扩展压缩包为本地发布产物，避免误用过时或包含已删除权限的历史包
+/extensions/open-tabs-importer.zip

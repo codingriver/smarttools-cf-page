@@ -1,6 +1,5 @@
 import { emptyDocument, entries, findEntry } from './bookmark-document.js';
 import { readBookmarkFile, exportBookmarkJson, prepareImportedDraft, importDescription } from './bookmark-transfer.js';
-import { convertSections } from './legacy-convert.js';
 import { mountAccount } from './account-component.js';
 import { bindCacheMenu, renderAccountMenu } from './cache-menu.js';
 import { icon, mountIcons } from './icons.js';
@@ -203,9 +202,9 @@ function render() {
 }
 function applySnapshot(data) {
   editor.reset(); closeMenu(); closeFolder();
-  state.document = clone(data?.document || (data?.legacy ? convertSections(data.sections) : emptyDocument()));
+  state.document = clone(data?.document || emptyDocument());
   state.baseline = clone(state.document); state.etag = data?.schema === 2 ? data.etag : null;
-  state.source = data?.schema === 2 ? 'kv' : data?.legacy ? 'legacy-cache' : null;
+  state.source = data?.schema === 2 ? 'kv' : null;
   state.hasKV = data?.schema === 2; state.savedAt = data?.savedAt; state.dirty = false;
 }
 async function remote(action, extra = {}) {
@@ -218,13 +217,13 @@ async function sync(force = false, action = 'sync', extra = {}) {
   try {
     const result = await remote(action, { force, ...extra }); state.loggedIn = result.loggedIn === true; state.usesDefaultPassword = result.usesDefaultPassword === true; state.connectionIssue = '';
     if (hasDraft()) status(result.snapshot?.etag !== state.etag ? '云端数据已变化；当前草稿保留，请核对后再保存。' : '当前草稿保留。');
-    else { applySnapshot(result.snapshot); status(result.warning || (state.source === 'legacy-cache' ? '旧版本机缓存只读 · 请先完成服务端维护迁移' : !state.etag ? '尚未加载新书签库 · 请登录并检查服务端迁移状态' : !state.loggedIn ? '未登录 · 本机缓存只读' : '已同步 · 修改后请保存到云端'), !!result.warning); }
+    else { applySnapshot(result.snapshot); status(result.warning || (!state.etag ? '尚未加载新书签库 · 请登录并初始化服务端' : !state.loggedIn ? '未登录 · 本机缓存只读' : '已同步 · 修改后请保存到云端'), !!result.warning); }
   } finally { if (generation === state.generation) { state.busy = false; render(); } }
 }
 async function switchSite(configUrl) {
   state.generation++; state.busy = false; state.loggedIn = false; state.usesDefaultPassword = false; state.connectionIssue = ''; applySnapshot(null); state.configUrl = normalizeConfigUrl(configUrl); state.selected = selectionPreferences[new URL(state.configUrl).origin] || ''; $('siteUrl').value = state.configUrl; $('search').value = '';
-  $('website').href = new URL(state.configUrl).origin + '/'; $('backend').href = new URL('/account.html', state.configUrl).href; closeMenu(); render();
-  const snapshot = await remote('cache.get'); if (snapshot) { applySnapshot(snapshot); render(); status(snapshot.legacy ? '旧版本机缓存只读；联网完成服务器迁移后可编辑' : '已显示本机缓存，正在检查会话'); } await sync();
+  closeMenu(); render();
+  const snapshot = await remote('cache.get'); if (snapshot) { applySnapshot(snapshot); render(); status('已显示本机缓存，正在检查会话'); } await sync();
 }
 async function save() {
   if (!editable() || !state.dirty) return; const generation = state.generation; state.busy = true; render();

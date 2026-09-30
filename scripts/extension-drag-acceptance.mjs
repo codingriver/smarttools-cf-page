@@ -1,4 +1,3 @@
-import { convertSections } from '../extensions/open-tabs-importer/legacy-convert.js';
 import { chromium } from 'playwright-core';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -7,19 +6,22 @@ import path from 'node:path';
 // Real homepage modules, CSS and native mouse dragging with synthetic RPC/cache.
 // Authentication and real IndexedDB/save integration remain in extension-v2-acceptance.mjs.
 const fixtureOrigin = 'https://extension-fixture.invalid';
-const fixture = { sections: [
-  { key: 'a', kind: 'card', label: 'Daily', cards: [
-    { id: 'folder', type: 'expandable', title: 'Synthetic folder', url: 'https://example.invalid/parent', subCards: [{ id: 'a-drop', type: 'compact', title: 'Synthetic child', url: 'https://example.invalid/child', custom: { retained: true } }] },
-    ...Array.from({ length: 16 }, (_, i) => ({ id: 'c' + i, title: 'Bookmark ' + i, url: 'https://example.invalid/' + i }))
-  ] }, { key: 'b', kind: 'card', label: 'Work', cards: [] }
-], dataEtag: 'synthetic-version', source: 'kv', configured: 'kv', hasKV: true, privateFiltered: false, savedAt: 1 };
+const fixture = { schema: 2, etag: 'synthetic-version', source: 'kv', configured: 'kv', hasKV: true, savedAt: 1,
+  document: { schemaVersion:2, updatedAt: 1, roots: [
+    { id:'a', type:'folder', title:'Daily', visible:true, isPrivate:false, children:[
+      { id:'folder', type:'folder', title:'Synthetic folder', visible:true, isPrivate:false, url:'https://example.invalid/parent', children:[
+        { id:'a-drop', type:'bookmark', title:'Synthetic child', url:'https://example.invalid/child', extensions:{ legacy:{ custom:{ retained:true } } } }
+      ] },
+      ...Array.from({length:16},(_,i)=>({id:'c'+i,type:'bookmark',title:'Bookmark '+i,url:'https://example.invalid/'+i}))
+    ] },
+    { id:'b', type:'folder', title:'Work', visible:true, isPrivate:false, children:[] }
+  ] } };
 const browser = await chromium.launch({ executablePath: process.env.EXTENSION_CHROME_PATH || chromium.executablePath(), headless: true });
 const errors = [];
 try {
   for (const destination of ['desktop', 'same-category', 'other-category', 'folder-end']) {
     const snapshot = structuredClone(fixture);
-    if (destination === 'folder-end') snapshot.sections[0].cards[0].subCards.push({ id: 'second', title: 'Second child', url: 'https://example.invalid/second' });
-    Object.assign(snapshot, { schema:2, document:convertSections(snapshot.sections), etag:snapshot.dataEtag }); delete snapshot.sections;
+    if (destination === 'folder-end') snapshot.document.roots[0].children[0].children.push({ id: 'second', type:'bookmark', title: 'Second child', url: 'https://example.invalid/second' });
     const page = await browser.newPage({ viewport: { width: 1510, height: 720 } });
     page.setDefaultTimeout(5000);
     page.on('pageerror', error => errors.push(error.message));
@@ -79,7 +81,7 @@ try {
     await page.waitForTimeout(300);
     await page.locator('#save').click(); await page.locator('#status').filter({ hasText: '已保存到云端' }).waitFor();
     const saved = await page.evaluate(() => fixtureSaves);
-    assert.equal(saved.length, 1); assert.equal(saved[0].baseEtag, snapshot.dataEtag); assert.equal(saved[0].baseSource, undefined);
+    assert.equal(saved.length, 1); assert.equal(saved[0].baseEtag, snapshot.etag); assert.equal(saved[0].baseSource, undefined);
     const parent = saved[0].document.roots[0].children.find(card => card.id === 'folder');
     assert.equal(parent.url, 'https://example.invalid/parent');
     const moved = destination === 'folder-end' ? parent.children.at(-1) : saved[0].document.roots[destination === 'other-category' ? 1 : 0].children.at(-1);

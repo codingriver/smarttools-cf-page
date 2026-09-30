@@ -1,5 +1,2 @@
-import { jsonResponse } from '../_shared/auth.js';
-
-export async function onRequest() {
-    return jsonResponse({ ok: false, error: 'API 不存在' }, 404);
-}
+import { authReply } from '../_shared/auth-v2.js';
+export function onRequest() { return authReply({ ok: false, error: 'Not Found' }, 404); }

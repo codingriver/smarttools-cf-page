@@ -100,7 +100,7 @@ async function putDocument(configUrl, revision, document, baseEtag) {
   try { return confirmed(response); } catch { throw failure('保存响应无法验证，请保留草稿并先核对云端', 502, { code: 'INVALID_RESPONSE', outcomeUnknown: true }); }
 }
 async function save(configUrl, revision, message) {
-  if (message.initialize) throw failure('扩展不支持初始化，请先完成维护迁移', 403);
+  if (message.initialize) throw failure('扩展不支持初始化，请先初始化 v2 文档', 403);
   const latest = await fullData(configUrl, revision);
   if (latest.meta.etag !== message.baseEtag) throw failure('云端数据已变化，请保留草稿并核对', 409, { code: 'SAVE_CONFLICT' });
   const result = await putDocument(configUrl, revision, message.document, message.baseEtag);
@@ -196,7 +196,7 @@ export function dispatch(message, sender = {}) {
       case 'login': {
         await request(configUrl, revision, '/api/v2/auth/login', { username: message.username, password: message.password });
         const value = await sync(configUrl, revision, true);
-        if (!value.loggedIn) throw failure('浏览器 Cookie 策略阻止了会话，请检查授权和第三方 Cookie 设置，或使用网站后台', 401);
+        if (!value.loggedIn) throw failure('浏览器 Cookie 策略阻止了会话，请检查授权和第三方 Cookie 设置', 401);
         return value;
       }
       case 'logout':
