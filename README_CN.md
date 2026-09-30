@@ -22,4 +22,6 @@
 
 ## 本地验收／发布
 
+API、构建和扩展验收脚本及合成 fixture 统一放在 `tests/`；构建、部署检查和离线初始化工具留在 `scripts/`。
+
 `npm run build && npm run verify:deploy && npm test`。构建只生成 `dist/_routes.json`，扩展不复制到 Pages。`npm run deploy` 仅用于明确授权的线上部署；本次开发不自动执行。参见 [协议说明](BOOKMARKS_V2.md)、[扩展说明](extensions/open-tabs-importer/README.md)。

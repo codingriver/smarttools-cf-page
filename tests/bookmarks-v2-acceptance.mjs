@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { validateDocument, businessContent, entries, moveNode, canMoveNode } from '../extensions/open-tabs-importer/bookmark-document.js';
-import { prepareCandidate } from './prepare-bookmarks-v2.mjs';
+import { prepareCandidate } from '../scripts/prepare-bookmarks-v2.mjs';
 import { fixture, folder, bookmark, testEnv } from './bookmarks-v2-fixture.mjs';
 import { handleBookmarks, CURRENT_KEY } from '../functions/_shared/bookmarks-v2.js';
 import { createSessionToken } from '../functions/_shared/auth-v2.js';

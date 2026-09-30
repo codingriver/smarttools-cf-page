@@ -26,4 +26,6 @@ Administrator responses are `private, no-store`; Cookie is HttpOnly, Secure, Sam
 
 ## Local checks
 
+Test suites, synthetic fixtures and browser scenarios live in `tests/`; build, deploy checks and the offline v2 initializer stay in `scripts/`.
+
 `npm run build && npm run verify:deploy && npm test`. The only static Pages output is `dist/_routes.json`; the extension is installed separately. `npm run deploy` uploads only on explicit authorization; this change does not deploy. See [protocol](BOOKMARKS_V2.md) and [extension guide](extensions/open-tabs-importer/README.md).

@@ -15,6 +15,7 @@
 
 ## 修改和验收
 - 只改任务相关源码，保留用户改动；不提交 `dist/`、`.wrangler/`、`node_modules/`、`artifacts/`。修改 API/产品边界同步 README、README_CN 和相应扩展文档。
+- 测试脚本与合成 fixture 放在 `tests/`；构建、部署检查和离线初始化工具放在 `scripts/`。
 - 构建／发布准备前读取 `.agents/skills/smarttools-release/SKILL.md`；`npm run build`、`npm run verify:deploy`、`npm run test:build`、`npm run test:api`、`npm run test:extension`、`npm test`。API 测试只用隔离本地/合成数据。
 - 仅用户明确要求部署才运行 `npm run deploy`；默认项目 `smarttools`，不自行创建、修改线上绑定、变量或 KV。发布前检查 `_routes.json`、`dist/` 资产清单以及目标 Pages 生产分支。
 - 纯 v2 离线初始化 `npm run prepare:bookmarks-v2 -- --empty --output <仓库外新目录>` 或 `--input <v2 JSON> --output <仓库外新目录>`；不会写远端 KV，实际首次安装另行确认库为空。

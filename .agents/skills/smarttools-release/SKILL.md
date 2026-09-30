@@ -11,7 +11,7 @@ description: 构建并本地验收栖页的 Cloudflare Pages v2 API；仅在用�
 
 1. `npm run build`，脚本仅允许干净的 `dist` 或 `.wrangler` 下输出。
 2. `npm run verify:deploy`：仅校验干净 `dist/` 和全站路由，不能代替逐条 API 验收。
-3. `npm run test:build && npm run test:api && npm run test:extension`，或 `npm test`。所有数据使用合成或隔离本地 KV；不要指向生产进行写入测试。
+3. `npm run test:build && npm run test:api && npm run test:extension`，或 `npm test`（验收脚本及合成 fixture 位于 `tests/`）。所有数据使用合成或隔离本地 KV；不要指向生产进行写入测试。
 4. `git diff --check`；查看 `dist/` 不含网站、扩展、书签或密钥。不得擅自清理线上历史 KV 键。
 
 ## 仅明确部署请求
