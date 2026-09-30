@@ -33,7 +33,7 @@ async function signingKey(config) {
   // Derive a purpose-separated key from an unambiguous length-delimited JSON tuple.
   // Neither the password nor any standalone password verifier enters the cookie.
   const key = await hmac(config.secret, ['sign']);
-  const material = encoder.encode(JSON.stringify(['smarttools-auth-v2', config.user, config.password]));
+  const material = encoder.encode(JSON.stringify(['qiye-auth-v2', config.user, config.password]));
   return base64url(new Uint8Array(await crypto.subtle.sign('HMAC', key, material)));
 }
 export async function createSessionToken(env, now = Date.now()) {

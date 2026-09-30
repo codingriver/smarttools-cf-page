@@ -30,7 +30,7 @@ const server=http.createServer(async(req,res)=>{
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const base='http://127.0.0.1:'+server.address().port;
 await mkdir('.wrangler',{recursive:true});const directory=await mkdtemp(path.resolve('.wrangler/extension-v2-'));
-const staged=path.join(directory,'extension');await cp('extensions/open-tabs-importer',staged,{recursive:true});
+const staged=path.join(directory,'extension');await cp('extensions/qiye',staged,{recursive:true});
 await writeFile(path.join(staged,'background.js'), (await readFile(path.join(staged,'background.js'),'utf8')) + `
 import { trustedClient as testTrusted, handleMenuClick as testCapture } from './cache-controller.js';
 import { readMenuIndex as testMenu, readSnapshot as testRead, writeSnapshot as testWrite } from './cache-db.js';
@@ -43,7 +43,7 @@ const track=()=>context.on('page',page=>page.on('pageerror',err=>errors.push(err
 const worker=await (async()=>context.serviceWorkers()[0]||context.waitForEvent('serviceworker'))();
 const extension=`chrome-extension://${new URL(worker.url()).host}/`;
 await worker.evaluate(configUrl=>chrome.storage.sync.set({configUrl}),base+'/config.html');
-const rpc=(page,action,extra={})=>page.evaluate(async({action,configUrl,extra})=>chrome.runtime.sendMessage({channel:'smarttools-client',action,configUrl,...extra}),{action,configUrl:base+'/config.html',extra});
+const rpc=(page,action,extra={})=>page.evaluate(async({action,configUrl,extra})=>chrome.runtime.sendMessage({channel:'qiye-client',action,configUrl,...extra}),{action,configUrl:base+'/config.html',extra});
 const snap=async page=>(await rpc(page,'cache.get')).value;
 const idle=page=>page.waitForFunction(()=>!document.querySelector('#refresh').disabled);
 const editTitle=async(page,title,next)=>{await page.getByRole('button',{name:'书签操作：'+title,exact:true}).click();await page.getByRole('menuitem',{name:'编辑',exact:true}).click();await page.locator('#fields input[name=title]').fill(next);await page.locator('#editForm button[type=submit]').click();};
@@ -97,7 +97,7 @@ try {
  const cacheFailed=await rpc(first,'save',{document:candidate,baseEtag:before});assert(cacheFailed.ok&&cacheFailed.value.saved&&cacheFailed.value.warning);assert.equal((await snap(first)).etag,before);
  await worker.evaluate(() => { IDBObjectStore.prototype.put=originalPut; });await rpc(first,'sync',{force:true});captured=await snap(first);const newest=captured.etag;assert.notEqual(newest,before);
  // Corrupt cache is not interpreted as an empty successful library; authenticated refresh repairs it.
- await worker.evaluate(async site=>{const db=await new Promise(resolve=>{const r=indexedDB.open('smarttools-confirmed-cache',2);r.onsuccess=()=>resolve(r.result);});await new Promise((resolve,reject)=>{const tx=db.transaction('documents','readwrite');tx.objectStore('documents').put({schema:2,site,document:{roots:[]}});tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();},base);
+ await worker.evaluate(async site=>{const db=await new Promise(resolve=>{const r=indexedDB.open('qiye-confirmed-cache',2);r.onsuccess=()=>resolve(r.result);});await new Promise((resolve,reject)=>{const tx=db.transaction('documents','readwrite');tx.objectStore('documents').put({schema:2,site,document:{roots:[]}});tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();},base);
  const corrupt=await rpc(first,'cache.get');assert.equal(corrupt.ok,false);assert.match(corrupt.error,/缓存格式损坏/);
  const repaired=await rpc(first,'sync',{force:true});assert(repaired.ok);assert.equal((await snap(first)).etag,newest);
  // Invalid/private-filtered server data cannot overwrite a confirmed full cache or leave writes enabled.
@@ -122,14 +122,14 @@ try {
  const restarted=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
  const oldSite=base, otherSite='https://second.example.invalid';
  await restarted.evaluate(async({site,other,document})=>{
-   const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('smarttools-confirmed-cache',2);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+   const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('qiye-confirmed-cache',2);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
    await new Promise((resolve,reject)=>{const tx=db.transaction('snapshots','readwrite');tx.objectStore('snapshots').put({schema:1,site,privateFiltered:false,sections:[{key:'old-private',label:'Old private',private:true,cards:[]}]});tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();
    await fixtureAPI.writeSnapshot({schema:2,site:other,document,etag:'"other"',savedAt:1});
  },{site:oldSite,other:otherSite,document:fixture()});
  const old=await snap(restored);assert.equal(old,null);await restored.reload();await idle(restored);assert.equal(await restored.getByRole('button',{name:'Old private · Private',exact:true}).count(),0);
  await restarted.evaluate(async({site,document})=>fixtureAPI.writeSnapshot({schema:2,site,document,etag:'"upgraded"',savedAt:1}),{site:base,document:fixture()});
  assert.equal((await snap(restored)).schema,2);
- const leftover=await restarted.evaluate(async site=>{const db=await new Promise(resolve=>{const r=indexedDB.open('smarttools-confirmed-cache',2);r.onsuccess=()=>resolve(r.result);});const result=await new Promise(resolve=>{const r=db.transaction('snapshots').objectStore('snapshots').get(site);r.onsuccess=()=>resolve(r.result);});db.close();return result;},base);assert.equal(leftover,undefined);
+ const leftover=await restarted.evaluate(async site=>{const db=await new Promise(resolve=>{const r=indexedDB.open('qiye-confirmed-cache',2);r.onsuccess=()=>resolve(r.result);});const result=await new Promise(resolve=>{const r=db.transaction('snapshots').objectStore('snapshots').get(site);r.onsuccess=()=>resolve(r.result);});db.close();return result;},base);assert.equal(leftover,undefined);
  await rpc(restored,'cache.clear');assert.equal(await snap(restored),null);
  assert(await restarted.evaluate(async site=>!!await fixtureAPI.readSnapshot(site),otherSite));
  await restarted.evaluate(configUrl=>chrome.storage.sync.set({configUrl}),otherSite+'/config.html');

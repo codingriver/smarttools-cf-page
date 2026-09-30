@@ -21,7 +21,7 @@ async function guard(configUrl, revision, network = false) {
   if (network && !await chrome.permissions.contains({ origins: [sitePattern(configUrl)] })) throw failure('站点尚未授权或权限已撤销；请在右上角账户的“高级设置”中点击“保存地址”并允许访问站点，本机缓存仍可查看', 403, { code: 'SITE_PERMISSION_REQUIRED' });
 }
 function notify(type, site, extra = {}) {
-  chrome.runtime.sendMessage({ channel: 'smarttools-cache-event', type, site, ...extra }).catch(() => {});
+  chrome.runtime.sendMessage({ channel: 'qiye-cache-event', type, site, ...extra }).catch(() => {});
 }
 async function request(configUrl, revision, path, body, method) {
   await guard(configUrl, revision, true);
@@ -127,22 +127,22 @@ export async function rebuildMenus() {
   const index = { site, entries: {} };
   const contexts = ['page', 'link', 'action'];
   await chrome.contextMenus.removeAll();
-  await createMenu({ id: 'smarttools-root', title: '收藏到栖页', contexts });
+  await createMenu({ id: 'qiye-root', title: '收藏到栖页', contexts });
   const containerMenus = new Map(); let count = 0, overflow = false;
   for (const group of menuTargets(snapshot)) {
     if (++count > 200) { overflow = true; break; }
     const parentId = `${revision}-g${count}`;
     try {
-      await createMenu({ id: parentId, parentId: containerMenus.get(group.parentId) || 'smarttools-root', title: group.title, contexts });
+      await createMenu({ id: parentId, parentId: containerMenus.get(group.parentId) || 'qiye-root', title: group.title, contexts });
       containerMenus.set(group.id, parentId);
       const id = `${parentId}-save`; index.entries[id] = group.entries[0].target;
       await createMenu({ id, parentId, title: '＋ 收藏到此处', contexts });
     } catch { overflow = true; break; }
   }
-  if (overflow) await createMenu({ id: 'smarttools-choose', parentId: 'smarttools-root', title: '更多位置：打开主页手动添加', contexts });
-  if (!snapshot?.document) await createMenu({ id: 'smarttools-load', parentId: 'smarttools-root', title: '登录／加载收藏位置', contexts });
-  await createMenu({ id: 'smarttools-refresh', parentId: 'smarttools-root', title: '刷新收藏位置', contexts });
-  await createMenu({ id: 'smarttools-home', parentId: 'smarttools-root', title: '打开扩展主页／登录', contexts });
+  if (overflow) await createMenu({ id: 'qiye-choose', parentId: 'qiye-root', title: '更多位置：打开主页手动添加', contexts });
+  if (!snapshot?.document) await createMenu({ id: 'qiye-load', parentId: 'qiye-root', title: '登录／加载收藏位置', contexts });
+  await createMenu({ id: 'qiye-refresh', parentId: 'qiye-root', title: '刷新收藏位置', contexts });
+  await createMenu({ id: 'qiye-home', parentId: 'qiye-root', title: '打开扩展主页／登录', contexts });
   await writeMenuIndex(index);
 }
 export function handleMenuClick(info, tab) {
@@ -151,8 +151,8 @@ export function handleMenuClick(info, tab) {
   const chosenRevision = epoch;
   return serial(async () => {
     const configUrl = await configured(), revision = epoch;
-    if (['smarttools-load', 'smarttools-home', 'smarttools-choose'].includes(info.menuItemId)) return openHome();
-    if (info.menuItemId === 'smarttools-refresh') {
+    if (['qiye-load', 'qiye-home', 'qiye-choose'].includes(info.menuItemId)) return openHome();
+    if (info.menuItemId === 'qiye-refresh') {
       const value = await sync(configUrl, revision, true);
       return resultStatus(value.warning || (value.loggedIn ? '收藏位置已刷新' : '请先登录；已缓存收藏位置保留'), !value.loggedIn || !!value.warning);
     }
@@ -215,7 +215,7 @@ export function dispatch(message, sender = {}) {
 }
 export function initializeClient() {
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
-    if (message?.channel !== 'smarttools-client') return;
+    if (message?.channel !== 'qiye-client') return;
     if (!trustedClient(sender, message.action)) { reply({ ok: false, error: '不允许的调用来源', status: 403, code: 'CLIENT_FORBIDDEN' }); return; }
     dispatch(message, sender).then(value => reply({ ok: true, value }), error => reply({ ok: false, error: error.message || '扩展操作失败', status: error.status, code: error.code, path: error.path, outcomeUnknown: error.outcomeUnknown }));
     return true;

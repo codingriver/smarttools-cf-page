@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { authorizeSite } from '../extensions/open-tabs-importer/site.js';
-import { client, applyClientError, sessionLabel } from '../extensions/open-tabs-importer/client.js';
-import { saveDraft } from '../extensions/open-tabs-importer/draft-actions.js';
-import { createEditing } from '../extensions/open-tabs-importer/library-editing.js';
+import { authorizeSite } from '../extensions/qiye/site.js';
+import { client, applyClientError, sessionLabel } from '../extensions/qiye/client.js';
+import { saveDraft } from '../extensions/qiye/draft-actions.js';
+import { createEditing } from '../extensions/qiye/library-editing.js';
 import { fixture } from './bookmarks-v2-fixture.mjs';
 let form, dirty=0;
 const state={document:fixture(),selected:'Daily'};

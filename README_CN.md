@@ -1,12 +1,12 @@
 # 栖页 · 书签桌面
 
-本仓库仅包含**独立安装的 Chrome 扩展**与 **Cloudflare Pages v2 API**；不再提供网站首页、网站后台或旧接口。扩展在 `extensions/open-tabs-importer/`，可从主页编辑、拖拽与显式保存书签；账户菜单手动导入／导出 v2 JSON（包括 Private，文件不加密）；弹窗可复制及导出打开的标签，右键菜单可收藏。没有 Chrome 原生书签同步或新标签页接管。
+本仓库仅包含**独立安装的 Chrome 扩展**与 **Cloudflare Pages v2 API**；不再提供网站首页、网站后台或旧接口。扩展在 `extensions/qiye/`，可从主页编辑、拖拽与显式保存书签；账户菜单手动导入／导出 v2 JSON（包括 Private，文件不加密）；弹窗可复制及导出打开的标签，右键菜单可收藏。没有 Chrome 原生书签同步或新标签页接管。
 
 ## 安装和配置
 
 1. 将 Pages Functions 发布到现有 Pages 项目，绑定 `FAV_KV`。设置独立 Secret `AUTH_SECRET`（至少 16 字符），并**务必设置独立的 `PASSWORD` Secret**；可用 `USER` 覆盖默认用户名。缺失时会使用公开的 `admin`／`codingriver2026`，不能视为安全配置；旧 `ADMIN_*` 与 KV 自定义密码均不会生效。修改变量并重新部署后重新登录，没有在线改密／恢复入口。
 2. 若 KV 当前文档键 `admin:bookmarks:v2:current` 尚不存在，可离线生成初始化候选：`npm run prepare:bookmarks-v2 -- --empty --output <仓库外新目录>`，或 `--input <纯 v2 书签 JSON> --output <仓库外新目录>`。输出 `{document, etag}`，**不会上传**；另行确认目标 KV 为空后单独安装候选。不要对已有 KV 用此工具覆盖；日常导入走扩展草稿保存。
-3. Chrome “加载已解压的扩展程序”选择 `extensions/open-tabs-importer/`。在高级设置填写 Pages **origin** 并授予该站点访问权限；旧保存的 `/config.html` 地址自动归一化为相同 origin。登录后访问并保存。缓存和偏好保留，不需卸载重装。
+3. Chrome “加载已解压的扩展程序”选择 `extensions/qiye/`。在高级设置填写 Pages **origin** 并授予该站点访问权限；旧保存的 `/config.html` 地址自动归一化为相同 origin。登录后访问并保存。本次统一命名不迁移旧扩展数据，见下方说明。
 
 ## v2 API
 
@@ -24,4 +24,12 @@
 
 API、构建和扩展验收脚本及合成 fixture 统一放在 `tests/`；构建、部署检查和离线初始化工具留在 `scripts/`。
 
-`npm run build && npm run verify:deploy && npm test`。构建只生成 `dist/_routes.json`，扩展不复制到 Pages。`npm run deploy` 仅用于明确授权的线上部署；本次开发不自动执行。参见 [协议说明](BOOKMARKS_V2.md)、[扩展说明](extensions/open-tabs-importer/README.md)。
+`npm run build && npm run verify:deploy && npm test`。构建只生成 `dist/_routes.json`，扩展不复制到 Pages。`npm run deploy` 仅用于明确授权的线上部署；本次开发不自动执行。参见上方 v2 API 清单及[扩展说明](extensions/qiye/README.md)。
+
+## qiye 命名与升级边界
+
+- npm 包、默认 Pages 项目均为 `qiye`，扩展目录为 `extensions/qiye/`，发布 Skill 为 `.agents/skills/qiye-release/`。构建自定义输出使用 `QIYE_OUTPUT_DIR`／`QIYE_OUTPUT_CLEAN`。
+- 默认服务端地址为 `https://qiye.pages.dev`，只是本地配置默认值；本次未核实其归属、创建远端项目或部署。使用前务必在高级设置确认或改为自己控制的实际 origin；已有已保存地址不会被自动重写。
+- IndexedDB 改为 `qiye-confirmed-cache`，消息通道、菜单 ID、认证签名用途标识也统一使用 qiye。本次不兼容、不读取、不迁移、不删除旧名称数据库；清除缓存只作用于当前名称数据库，旧数据库如需删除须手动清理。
+- 从新目录加载未打包扩展可能改变扩展身份，需要重新配置地址、授权及登录。旧签名会话失效；可从服务器重新加载已保存数据，必要时手动导入自己的 v2 JSON 备份。KV 绑定、当前文档键、v2 数据模型均未改变。
+- 代码改名不等于远端仓库／Pages 项目或活动工作区目录改名；部署前必须核实目标项目、生产分支、Secret 和 KV 绑定。本次未修改线上资源。

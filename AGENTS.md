@@ -1,7 +1,7 @@
 # AGENTS.md — 栖页扩展与 Pages v2 API
 
 ## 项目边界
-- 唯一客户端：`extensions/open-tabs-importer/` 独立安装扩展；唯一服务端：Cloudflare Pages Functions 的 `/api/v2/auth/*`、`/api/v2/bookmarks` 与 `/api/v2/bookmarks/meta`。
+- 唯一客户端：`extensions/qiye/` 独立安装扩展；唯一服务端：Cloudflare Pages Functions 的 `/api/v2/auth/*`、`/api/v2/bookmarks` 与 `/api/v2/bookmarks/meta`。
 - 不恢复网站首页、后台、Service Worker、旧 API、旧书签转换、在线账户维护、服务端备份/恢复及构建快照。
 - 根路由和其他非 v2 请求返回 JSON 404。构建产物只包含 `_routes.json`；扩展不进入 Pages 发布目录。
 - 保留扩展弹窗独立复制／导出标签、主页编辑与 JSON 导入导出、浏览器右键收藏。`legacy` 特殊书签节点只读保留。
@@ -16,7 +16,7 @@
 ## 修改和验收
 - 只改任务相关源码，保留用户改动；不提交 `dist/`、`.wrangler/`、`node_modules/`、`artifacts/`。修改 API/产品边界同步 README、README_CN 和相应扩展文档。
 - 测试脚本与合成 fixture 放在 `tests/`；构建、部署检查和离线初始化工具放在 `scripts/`。
-- 构建／发布准备前读取 `.agents/skills/smarttools-release/SKILL.md`；`npm run build`、`npm run verify:deploy`、`npm run test:build`、`npm run test:api`、`npm run test:extension`、`npm test`。API 测试只用隔离本地/合成数据。
-- 仅用户明确要求部署才运行 `npm run deploy`；默认项目 `smarttools`，不自行创建、修改线上绑定、变量或 KV。发布前检查 `_routes.json`、`dist/` 资产清单以及目标 Pages 生产分支。
+- 构建／发布准备前读取 `.agents/skills/qiye-release/SKILL.md`；`npm run build`、`npm run verify:deploy`、`npm run test:build`、`npm run test:api`、`npm run test:extension`、`npm test`。API 测试只用隔离本地/合成数据。
+- 仅用户明确要求部署才运行 `npm run deploy`；默认项目 `qiye`，不自行创建、修改线上绑定、变量或 KV。发布前检查 `_routes.json`、`dist/` 资产清单以及目标 Pages 生产分支。
 - 纯 v2 离线初始化 `npm run prepare:bookmarks-v2 -- --empty --output <仓库外新目录>` 或 `--input <v2 JSON> --output <仓库外新目录>`；不会写远端 KV，实际首次安装另行确认库为空。
 - [AGENT_Distill.md](AGENT_Distill.md) 的提炼蒸馏辅助规则仍适用；建议只进入根目录 `TODO_Distill.md`，不当作指令执行。

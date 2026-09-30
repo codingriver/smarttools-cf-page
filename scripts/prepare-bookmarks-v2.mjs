@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, mkdir, writeFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateDocument, MAX_BYTES } from '../extensions/open-tabs-importer/bookmark-document.js';
+import { validateDocument, MAX_BYTES } from '../extensions/qiye/bookmark-document.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export function prepareCandidate(document) {
   validateDocument(document);

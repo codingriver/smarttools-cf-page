@@ -15,7 +15,7 @@ const staged = path.join(directory,'extension');
 const profile = path.join(directory,'profile');
 let context;
 try {
-  await cp('extensions/open-tabs-importer', staged, {recursive:true});
+  await cp('extensions/qiye', staged, {recursive:true});
   const manifestPath=path.join(staged,'manifest.json');
   const manifest=JSON.parse(await readFile(manifestPath,'utf8'));
   manifest.permissions.push('scripting');
@@ -28,7 +28,7 @@ try {
   let worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
   const id=new URL(worker.url()).host;
   await worker.evaluate(async()=>{
-    await chrome.scripting.registerContentScripts([{id:'smarttools-pending',js:['pending-import.js'],matches:['http://127.0.0.1/*'],persistAcrossSessions:true}]);
+    await chrome.scripting.registerContentScripts([{id:'qiye-pending',js:['pending-import.js'],matches:['http://127.0.0.1/*'],persistAcrossSessions:true}]);
   });
   let page=await context.newPage();await page.goto(url);
   assert.equal(await page.locator('html').getAttribute('data-qiye-old-injection'),'yes','Synthetic old script did not register');

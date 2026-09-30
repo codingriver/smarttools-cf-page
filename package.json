@@ -1,11 +1,11 @@
 {
-  "name": "smarttools-pages",
+  "name": "qiye",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node scripts/prepare-deploy.mjs",
     "verify:deploy": "node scripts/verify-deploy.mjs",
-    "deploy": "npm run build && npm run verify:deploy && npx wrangler@latest pages deploy dist --project-name smarttools --branch main --commit-dirty=true --skip-caching",
+    "deploy": "npm run build && npm run verify:deploy && npx wrangler@latest pages deploy dist --project-name qiye --branch main --commit-dirty=true --skip-caching",
     "test:build": "node tests/build-acceptance.mjs",
     "test:api": "node tests/bookmarks-v2-acceptance.mjs",
     "test:extension": "node tests/extension-transfer-acceptance.mjs && node tests/extension-desktop-acceptance.mjs && node tests/extension-drag-acceptance.mjs && node tests/extension-layout-acceptance.mjs && node tests/extension-sidebar-acceptance.mjs && node tests/extension-v2-acceptance.mjs && node tests/extension-upgrade-acceptance.mjs",

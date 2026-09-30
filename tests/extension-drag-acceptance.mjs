@@ -30,7 +30,7 @@ try {
       if (url.origin !== fixtureOrigin) return route.abort();
       const name = path.basename(url.pathname);
       if (!/\.(html|js|css)$/.test(name)) return route.abort();
-      const body = await readFile(path.join('extensions/open-tabs-importer', name));
+      const body = await readFile(path.join('extensions/qiye', name));
       await route.fulfill({ body, contentType: name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : 'text/html' });
     });
     await page.addInitScript(snapshot => {

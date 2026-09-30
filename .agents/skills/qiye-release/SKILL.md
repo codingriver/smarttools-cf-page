@@ -1,6 +1,6 @@
 ---
-name: smarttools-release
-description: 构建并本地验收栖页的 Cloudflare Pages v2 API；仅在用户明确要求时部署到 smarttools。
+name: qiye-release
+description: 构建并本地验收栖页的 Cloudflare Pages v2 API；仅在用户明确要求时部署到 qiye。
 ---
 
 # Pages v2 API 发布
@@ -16,4 +16,6 @@ description: 构建并本地验收栖页的 Cloudflare Pages v2 API；仅在用�
 
 ## 仅明确部署请求
 
-确认 `smarttools` Pages 项目生产分支是 `main`、账户和 KV 绑定匹配；检查运行环境 `USER`/`PASSWORD`（尤其 PASSWORD 不得无意使用公开默认值）、`AUTH_SECRET`、`FAV_KV`，不打印密钥。随后运行 `npm run deploy`（构建、verify、wrangler pages deploy）。目标不明确或凭据缺失时停下并报告；不自行创建项目、绑定或迁移 KV。部署后仅做匿名、只读验证，不在未授权下用线上管理员凭据测试。保留旧站点已有浏览器副本不能通过删除 Pages 源码远程保证清除。
+确认 `qiye` Pages 项目生产分支是 `main`、账户和 KV 绑定匹配；检查运行环境 `USER`/`PASSWORD`（尤其 PASSWORD 不得无意使用公开默认值）、`AUTH_SECRET`、`FAV_KV`，不打印密钥。随后运行 `npm run deploy`（构建、verify、wrangler pages deploy）。目标不明确或凭据缺失时停下并报告；不自行创建项目、绑定或迁移 KV。部署后仅做匿名、只读验证，不在未授权下用线上管理员凭据测试。保留旧站点已有浏览器副本不能通过删除 Pages 源码远程保证清除。
+
+命名调整只修改本地配置，不代表远端项目已创建或归当前账户所有；不得将默认 origin 当作已部署服务。仓库目录、Git 远端与线上资源改名需要单独操作和确认。

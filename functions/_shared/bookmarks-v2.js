@@ -1,5 +1,5 @@
 import { requireV2Auth, authReply } from './auth-v2.js';
-import { validateDocument, businessContent, MAX_BYTES } from '../../extensions/open-tabs-importer/bookmark-document.js';
+import { validateDocument, businessContent, MAX_BYTES } from '../../extensions/qiye/bookmark-document.js';
 export const CURRENT_KEY = 'admin:bookmarks:v2:current';
 export const reply = (body, status = 200) => authReply(body, status);
 export async function authorize(request, env) {

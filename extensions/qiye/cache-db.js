@@ -1,6 +1,6 @@
 import { validateDocument } from './bookmark-document.js';
 // Extension-origin IndexedDB only. Never exposed to content scripts or website origins.
-const DB_NAME = 'smarttools-confirmed-cache';
+const DB_NAME = 'qiye-confirmed-cache';
 let opening;
 function openDatabase() {
   if (!opening) opening = new Promise((resolve, reject) => {

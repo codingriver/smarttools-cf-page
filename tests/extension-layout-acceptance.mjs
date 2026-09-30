@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, mkdir } from 'node:fs/promises';
 
 // Synthetic UI fixture: execute the real disclosure/render module, without RPC or private data.
-const root = 'extensions/open-tabs-importer/';
+const root = 'extensions/qiye/';
 const html = (await readFile(root + 'start.html', 'utf8'))
   .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '')
   .replace('<link rel="stylesheet" href="start.css">', '');

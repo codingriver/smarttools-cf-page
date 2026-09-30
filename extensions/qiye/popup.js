@@ -239,7 +239,7 @@ async function showCacheStatus(sync = false) {
 }
 document.addEventListener('DOMContentLoaded', async () => { await showCaptureStatus(); await showCacheStatus(true); });
 chrome.runtime.onMessage.addListener((message, sender) => {
-  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('background.js') || message?.channel !== 'smarttools-cache-event') return;
+  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('background.js') || message?.channel !== 'qiye-cache-event') return;
   if (message.type === 'status') showCaptureStatus();
   if (['changed', 'cleared'].includes(message.type)) showCacheStatus();
 });

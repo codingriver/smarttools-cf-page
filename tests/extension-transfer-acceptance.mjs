@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fixture } from './bookmarks-v2-fixture.mjs';
-import { MAX_BYTES, emptyDocument } from '../extensions/open-tabs-importer/bookmark-document.js';
-import { parseBookmarkJson, readBookmarkFile, exportBookmarkJson, prepareImportedDraft, importDescription } from '../extensions/open-tabs-importer/bookmark-transfer.js';
+import { MAX_BYTES, emptyDocument } from '../extensions/qiye/bookmark-document.js';
+import { parseBookmarkJson, readBookmarkFile, exportBookmarkJson, prepareImportedDraft, importDescription } from '../extensions/qiye/bookmark-transfer.js';
 const original = fixture();
 assert.deepEqual(parseBookmarkJson(exportBookmarkJson(original)), original);
 assert.deepEqual(parseBookmarkJson('\uFEFF' + JSON.stringify(original)), original);

@@ -2,11 +2,11 @@ import { lstat, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const output = path.resolve(root, process.env.SMARTTOOLS_OUTPUT_DIR || 'dist');
+const output = path.resolve(root, process.env.QIYE_OUTPUT_DIR || 'dist');
 const relative = path.relative(root, output).replaceAll('\\', '/');
 if (output === root || !output.startsWith(root + path.sep) || !(relative === 'dist' || /^\.wrangler\/build-[a-z0-9-]+$/.test(relative)))
   throw new Error('Output must be dist or a dedicated .wrangler/build-* directory inside repository');
-if (process.env.SMARTTOOLS_OUTPUT_CLEAN === '0') throw new Error('Clean build required for API-only deployment');
+if (process.env.QIYE_OUTPUT_CLEAN === '0') throw new Error('Clean build required for API-only deployment');
 // Never recurse through a symlinked parent or follow an output symlink outside this workspace.
 const parent = path.dirname(output);
 const actualParent = await realpath(parent);

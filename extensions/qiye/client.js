@@ -1,7 +1,7 @@
 const unavailable = action => Object.assign(new Error(action === 'save' ? '扩展后台连接中断，保存结果未确认；草稿保留，请先核对云端，不要直接重复提交' : '扩展后台暂不可用，请检查连接'), { status: 0, code: 'BACKGROUND_UNAVAILABLE', outcomeUnknown: action === 'save' });
 export async function client(action, configUrl, extra = {}) {
   let result;
-  try { result = await chrome.runtime.sendMessage({ channel: 'smarttools-client', action, configUrl, ...extra }); }
+  try { result = await chrome.runtime.sendMessage({ channel: 'qiye-client', action, configUrl, ...extra }); }
   catch {
     throw unavailable(action);
   }

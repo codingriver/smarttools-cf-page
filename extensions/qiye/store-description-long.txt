@@ -1,6 +1,6 @@
 Qiye — Bookmark Desktop (栖页 · 书签桌面)
 
-A bookmark desktop for your own SmartTools v2 server, with categories, nested folders and explicit cloud saves. It does not replace your browser's new-tab page.
+A bookmark desktop for your own Qiye v2 server, with categories, nested folders and explicit cloud saves. It does not replace your browser's new-tab page.
 
 Features
 - Search and organize bookmarks in a standard icon desktop. Drag or use menus to move/reorder items; folders can nest, with cycle/depth protection.

@@ -267,7 +267,7 @@ for (const [id, all] of [['clearCache', false], ['clearAllCache', true]]) $(id).
   await client('cache.clear', state.configUrl, { all }); state.generation++; applySnapshot(null); render(); status('本机缓存已清除');
 }));
 chrome.runtime.onMessage.addListener((message, sender) => {
-  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('background.js') || message?.channel !== 'smarttools-cache-event') return;
+  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('background.js') || message?.channel !== 'qiye-cache-event') return;
   if (!state.configUrl || (message.site && message.site !== new URL(state.configUrl).origin)) return;
   if (message.type === 'auth') { state.loggedIn = message.loggedIn === true; if (!state.loggedIn) state.connectionIssue = ''; render(); }
   if (message.type === 'connection') { state.connectionIssue = message.issue; render(); }

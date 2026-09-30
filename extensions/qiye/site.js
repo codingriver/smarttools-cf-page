@@ -1,4 +1,4 @@
-export const DEFAULT_CONFIG_URL = 'https://smarttools-4xj.pages.dev';
+export const DEFAULT_CONFIG_URL = 'https://qiye.pages.dev';
 export function normalizeConfigUrl(raw) {
   const url = new URL(raw || DEFAULT_CONFIG_URL);
   if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('请输入不含凭据的 HTTP(S) 站点地址');

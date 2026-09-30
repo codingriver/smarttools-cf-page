@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, mkdir } from 'node:fs/promises';
 
 // Real layout/controller, synthetic UI preferences only; no auth, bookmarks or network.
-const root = 'extensions/open-tabs-importer/';
+const root = 'extensions/qiye/';
 const html = (await readFile(root + 'start.html', 'utf8')).replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '').replace(/<link\b[^>]*>/g, '');
 const css = await readFile(root + 'start.css', 'utf8');
 const controller = await readFile(root + 'sidebar-resize.js', 'utf8');
@@ -27,7 +27,9 @@ try {
     }
     document.querySelector('.nav-group').addEventListener('click',()=>fixture.clicks++);
   ` });
-  await page.evaluate(() => binding.ready);
+  // Inline module execution can finish after addScriptTag resolves.
+  await page.waitForFunction(() => Boolean(window.binding));
+  await page.evaluate(() => window.binding.ready);
   const handle = page.locator('#sidebarResize');
   const width = () => handle.getAttribute('aria-valuenow').then(Number);
   const stored = () => page.evaluate(() => fixture.value);
