@@ -6,9 +6,9 @@ import http from 'node:http';
 import { chromium } from 'playwright-core';
 import { onRequest as middleware } from '../functions/_middleware.js';
 import { handleBookmarks, CURRENT_KEY } from '../functions/_shared/bookmarks-v2.js';
-import { onRequestPost as login } from '../functions/api/login.js';
-import { onRequestGet as check } from '../functions/api/check.js';
-import { onRequestPost as logout } from '../functions/api/logout.js';
+import { onRequestPost as login } from '../functions/api/v2/auth/login.js';
+import { onRequestGet as check } from '../functions/api/v2/auth/session.js';
+import { onRequestPost as logout } from '../functions/api/v2/auth/logout.js';
 import { onRequestGet as security, onRequestPost as revoke } from '../functions/api/account/security.js';
 import { onRequestPost as changePassword } from '../functions/api/account/change-password.js';
 import { onRequestPost as recover } from '../functions/api/account/recovery.js';
@@ -21,7 +21,8 @@ for(const mode of ['maintenance','v2']) {
  assert.equal(await readFile(path.join(output,'config.html'),'utf8'),await readFile(path.join(output,'retired.html'),'utf8'));
  assert(!/sections\s*=/.test(await readFile(path.join(output,'data.js'),'utf8')));
  assert(!/data-inline-data/.test(await readFile(path.join(output,'index.html'),'utf8')));
- assert.match(await readFile(path.join(output,'account.html'),'utf8'),/account-maintenance.js\?v=[a-f0-9]{8}/);
+ assert.match(await readFile(path.join(output,'account.html'),'utf8'),/服务端账户配置/);
+ assert(!/account-maintenance.js/.test(await readFile(path.join(output,'account.html'),'utf8')));
 }
 const env=testEnv();env.FAV_KV.data.set(CURRENT_KEY,JSON.stringify({document:fixture(),etag:'"synthetic"'}));
 const asset=async input=>{const url=new URL(input),name=url.pathname==='/'?'index.html':url.pathname.slice(1);if(name.includes('..')) return new Response('',{status:404});try{return new Response(await readFile(path.join(output,name)),{headers:{'Content-Type':name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':'text/html'}});}catch{return new Response('',{status:404});}};
@@ -35,7 +36,7 @@ const server=http.createServer(async(req,res)=>{try{
  let response;
  if(!retired&&req.url==='/sw.js')response=new Response(oldWorker,{headers:{'Content-Type':'text/javascript','Cache-Control':'no-cache'}});
  else if(!retired&&req.url==='/')response=new Response('<h1>Old public fixture</h1><script>localStorage.setItem("smarttools:public-data-cache:v1","synthetic");navigator.serviceWorker.register("/sw.js");</script>',{headers:{'Content-Type':'text/html'}});
- else response=await middleware({request,env,next:async()=>req.url==='/api/check'?check({request,env}):req.url==='/api/login'?login({request,env}):req.url==='/api/logout'?logout({request,env}):req.url==='/api/account/security'?(req.method==='POST'?revoke:security)({request,env}):req.url==='/api/account/change-password'?changePassword({request,env}):req.url==='/api/account/recovery'?recover({request,env}):req.url==='/api/v2/bookmarks'?handleBookmarks({request,env}):req.url.startsWith('/api/')?new Response(JSON.stringify({ok:false}),{status:404,headers:{'Content-Type':'application/json'}}):asset('http://localhost'+req.url)});
+ else response=await middleware({request,env,next:async()=>req.url==='/api/v2/auth/session'?check({request,env}):req.url==='/api/v2/auth/login'?login({request,env}):req.url==='/api/v2/auth/logout'?logout({request,env}):req.url==='/api/account/security'?(req.method==='POST'?revoke:security)({request,env}):req.url==='/api/account/change-password'?changePassword({request,env}):req.url==='/api/account/recovery'?recover({request,env}):req.url==='/api/v2/bookmarks'?handleBookmarks({request,env}):req.url.startsWith('/api/')?new Response(JSON.stringify({ok:false}),{status:404,headers:{'Content-Type':'application/json'}}):asset('http://localhost'+req.url)});
  res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));
  }catch {res.writeHead(500).end('Synthetic server failure');}});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+server.address().port;
@@ -48,15 +49,10 @@ try {
  await page.waitForFunction(async()=>!(await caches.keys()).some(k=>k.startsWith('smarttools-')));await page.reload();
  assert.match(await page.locator('h1').innerText(),/栖页扩展/);assert.equal(await page.evaluate(()=>localStorage.getItem('smarttools:public-data-cache:v1')),null);assert(await page.evaluate(async()=>!!(await (await caches.open('unrelated-app')).match('/keep'))));
  await context.setOffline(true);await page.reload();assert.match(await page.locator('body').innerText(),/书签网站已停用/);await context.setOffline(false);
- await page.goto(base+'/account.html');await page.locator('input[name=username]').fill('testadmin');await page.locator('#login input[name=password]').fill('TestPass2026');await page.locator('#login button').click();await page.locator('#security').waitFor();assert.match(await page.locator('#source').innerText(),/environment/);
+ await page.goto(base+'/account.html');assert.match(await page.locator('h1').innerText(),/服务端账户配置/);assert.equal(await page.locator('form').count(),0);
  assert.equal((await fetch(base+'/api/v2/bookmarks')).status,401);assert.equal((await fetch(base+'/api/data')).status,410);assert.equal((await fetch(base+'/api/change-password')).status,404);
- // Retained account UI calls the unchanged security APIs, including global revocation and one-time recovery.
- await page.locator('#password input[name=currentPassword]').fill('TestPass2026');await page.locator('#password input[name=newPassword]').fill('ChangedPass2026');await page.locator('#password button').click();await page.locator('#login').waitFor();
- await page.locator('#login input[name=username]').fill('testadmin');await page.locator('#login input[name=password]').fill('ChangedPass2026');await page.locator('#login button').click();await page.locator('#security').waitFor();assert.match(await page.locator('#source').innerText(),/custom/);
- page.once('dialog',d=>d.accept());await page.locator('#revoke').click();await page.locator('#login').waitFor();
- env.PASSWORD_RECOVERY_ENABLED='true';env.PASSWORD_RECOVERY_TOKEN='synthetic-recovery-token-for-testing-only-2026';
- await page.reload();await page.locator('#recovery').waitFor();await page.locator('#recovery summary').click();await page.locator('#recover input[name=recoveryToken]').fill(env.PASSWORD_RECOVERY_TOKEN);await page.locator('#recover input[name=newPassword]').fill('RecoveredPass2026');await page.locator('#recover button').click();await page.locator('#status').filter({hasText:/已更新密码/}).waitFor();
- await page.locator('#login input[name=username]').fill('testadmin');await page.locator('#login input[name=password]').fill('RecoveredPass2026');await page.locator('#login button').click();await page.locator('#security').waitFor();
- const again=await fetch(base+'/api/account/recovery',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({recoveryToken:env.PASSWORD_RECOVERY_TOKEN,newPassword:'RepeatedPass2026'})});assert.equal(again.status,409);
- await context.close();console.log('PASS v2/maintenance builds, exact runtime retirement gates, warm SW upgrade/ordinary reload/offline, project-only cache cleanup and retained account login/change-password/revoke/recovery');
+ const signIn=await fetch(base+'/api/v2/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'testadmin',password:'TestPass2026'})});assert.equal(signIn.status,200);
+ const authCookie=signIn.headers.get('set-cookie').split(';')[0];assert.equal((await fetch(base+'/api/v2/bookmarks',{headers:{Cookie:authCookie}})).status,200);
+ for(const route of ['/api/check','/api/login','/api/logout','/api/account/security','/api/account/change-password','/api/account/recovery'])assert.equal((await fetch(base+route)).status,410);
+ await context.close();console.log('PASS v2/maintenance builds, runtime retirement gates, warm SW upgrade/offline, project-only cache cleanup and static account configuration');
 } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}

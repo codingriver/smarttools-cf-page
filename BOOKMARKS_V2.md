@@ -48,17 +48,14 @@
 
 | 方法、路径 | 输入 | 输出 / 用途 |
 |---|---|---|
-| `POST /api/login` | `{username,password}` | 原登录协议；浏览器接收 HttpOnly/Secure/SameSite=Strict Cookie |
-| `GET /api/check` | 无 | 原会话状态、管理员标识和 KV/恢复配置；不返回书签 |
-| `POST /api/logout` | `{}` | 原退出协议；本机书签不删除 |
+| `POST /api/v2/auth/login` | `{username,password}` | 环境变量 USER/PASSWORD（缺失时公开默认凭据）验证，设置安全 Cookie |
+| `GET /api/v2/auth/session` | 无 | 登录及服务状态；已登录时返回 usesDefaultPassword，不返回书签 |
+| `POST /api/v2/auth/logout` | `{}` | 退出会话；本机书签不删除 |
 | `GET /api/v2/bookmarks/meta` | 无 | `{ok,schemaVersion:2,updatedAt,etag}`；已登录时检查版本 |
 | `GET /api/v2/bookmarks` | 无 | `{ok:true,document,meta:{etag,source:"kv",view:"admin"}}` |
 | `PUT /api/v2/bookmarks` | `{document,baseEtag}` | 返回服务器确认的完整文档、版本及 `unchanged`；可能附 `warning` |
-| `GET/POST /api/account/security` | 原协议；POST `{action:"revoke-sessions"}` | 账户维护页查询/注销全部会话 |
-| `POST /api/account/change-password` | 原 `{currentPassword,newPassword}` | 账户维护页改密 |
-| `GET/POST /api/account/recovery` | 原查询/`{recoveryToken,newPassword}` | 临时一次性恢复，不新增恢复方式 |
 
-新书签协议只提供管理员视图；未登录返回 401，不提供公开/匿名数据替代，不回退旧接口。管理员响应始终 `private, no-store`。
+旧登录／账户接口返回 JSON 410，账户说明页无在线改密／恢复／注销全部设备操作。AUTH_SECRET 必填；PASSWORD 缺失时使用公开默认密码，生产必须配置独立 PASSWORD；旧 ADMIN_* 和 KV 自定义密码不用于 v2。新书签协议只提供管理员视图；未登录返回 401，不提供公开/匿名数据替代，不回退旧接口。管理员响应始终 `private, no-store`。
 
 `baseEtag` 使用读取响应中的完整字符串（包括其引号），不是时间戳。新协议不再使用 `baseSource`、JavaScript content 或分类增量。正常同步先 check，再 meta，版本变化才下载全量；手动刷新/登录会获取全量。无轮询和离线写入队列。
 
@@ -96,7 +93,7 @@ npm run prepare:bookmarks-v2 -- D:\private-backups\selected-admin.json --output 
 ### 未来单独授权后才执行的顺序
 
 1. 部署包含双模式开关的代码，确认当前仍为 legacy；保留可回退代码和完整、明确数据源的离线备份。
-2. 服务端设置 `BOOKMARKS_MODE=maintenance`，停止旧书签 API 的读写；登录及账户安全仍可用。用匿名和管理员请求确认写入口已冻结，等待在途写入结束后再导出最终数据。
+2. 服务端设置 `BOOKMARKS_MODE=maintenance`，停止旧书签 API 的读写；v2 登录仍可用，旧服务端配置说明接口已停用。用匿名和管理员请求确认写入口已冻结，等待在途写入结束后再导出最终数据。
 3. 对最终导出本地转换、人工核对容器/书签数量、Private/隐藏、未知和特殊字段。已有新当前键时禁止直接重新初始化；必须另行核对，不盲目覆盖。
 4. 在维护窗口由授权维护人员把核对后的 `candidate.json` 值写入新当前键，再读回比对；**本工具没有远程 apply 命令**。不要把 KV 内容或认证信息放入命令历史、终端输出或发布文件。
 5. 服务端改为 `BOOKMARKS_MODE=v2`；构建同时使用 `SMARTTOOLS_BOOKMARKS_MODE=v2`。确认登录、新 API、扩展缓存同步、显式保存以及旧端点 410，再开放使用。
@@ -108,9 +105,9 @@ npm run prepare:bookmarks-v2 -- D:\private-backups\selected-admin.json --output 
 |---|---|---|---|
 | 未设置 / legacy | 保持原协议 | 已鉴权请求 503 | 原网站 |
 | maintenance | 503 | 503 | 停用/维护说明 |
-| v2 | 410 | 管理员 v2 | 扩展指引＋账户安全 |
+| v2 | 410 | 管理员 v2 | 扩展指引＋服务端配置说明 |
 
-未知非空模式按维护处理。旧 `/api/change-password` 继续 404；`/api/account/*` 不退休。旧首页、config、data.js 和 SW 有精确路由守卫；新退休 SW 清理本项目 Cache Storage，说明页清理已知公开 localStorage 数据，不清理其他应用缓存。完全离线且从未收到新 SW 的设备不能被远程立即清除旧公开副本。
+未知非空模式按维护处理。旧 `/api/change-password` 继续 404；`/api/account/*` 已返回 410。旧首页、config、data.js 和 SW 有精确路由守卫；新退休 SW 清理本项目 Cache Storage，说明页清理已知公开 localStorage 数据，不清理其他应用缓存。完全离线且从未收到新 SW 的设备不能被远程立即清除旧公开副本。
 
 ```powershell
 # 仅本地构建，不发布

@@ -1,11 +1,11 @@
-import { requireAuth, jsonResponse } from './auth.js';
+import { requireV2Auth, authReply } from './auth-v2.js';
 import { validateDocument, businessContent, MAX_BYTES } from '../../extensions/open-tabs-importer/bookmark-document.js';
 export const CURRENT_KEY = 'admin:bookmarks:v2:current';
 export const BACKUP_PREFIX = 'admin:bookmarks:v2:backup:';
 export const bookmarksMode = env => ['legacy', 'maintenance', 'v2'].includes(env.BOOKMARKS_MODE) ? env.BOOKMARKS_MODE : env.BOOKMARKS_MODE ? 'maintenance' : 'legacy';
-export const reply = (body, status = 200) => jsonResponse(body, status, { 'Cache-Control': 'private, no-store' });
+export const reply = (body, status = 200) => authReply(body, status);
 export async function authorize(request, env) {
-  const auth = await requireAuth(request, env);
+  const auth = await requireV2Auth(request, env);
   if (auth) { const response = new Response(auth.body, auth); response.headers.set('Cache-Control', 'private, no-store'); return response; }
   if (bookmarksMode(env) !== 'v2') return reply({ ok: false, code: 'BOOKMARKS_UNAVAILABLE', error: '新书签协议尚未启用或正在维护' }, 503);
   if (!env.FAV_KV) return reply({ ok: false, code: 'KV_UNAVAILABLE', error: '未绑定 KV，不能读取或保存书签' }, 503);

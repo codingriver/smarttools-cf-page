@@ -15,7 +15,7 @@ import { client, applyClientError, sessionLabel } from './client.js';
 import { DEFAULT_CONFIG_URL, normalizeConfigUrl, authorizeSite, sitePattern } from './site.js';
 const $ = id => document.getElementById(id);
 mountAccount($('accountHost')); bindCacheMenu($('accountMenu')); mountIcons();
-const state = { configUrl: '', document: emptyDocument(), baseline: emptyDocument(), get sections() { return this.document.roots; }, showHidden: false, selected: '', scope: 'group', loggedIn: false, connectionIssue: '', hasKV: false, dirty: false, busy: false, generation: 0, etag: null, source: null, configured: null, savedAt: null };
+const state = { configUrl: '', document: emptyDocument(), baseline: emptyDocument(), get sections() { return this.document.roots; }, showHidden: false, selected: '', scope: 'group', loggedIn: false, usesDefaultPassword: false, connectionIssue: '', hasKV: false, dirty: false, busy: false, generation: 0, etag: null, source: null, configured: null, savedAt: null };
 let connecting = false, folder = null, folderOpener = null, menuOpener = null, selectionPreferences = {};
 const refs = new Map();
 const query = () => $('search').value.trim().toLowerCase();
@@ -216,13 +216,13 @@ async function remote(action, extra = {}) {
 async function sync(force = false, action = 'sync', extra = {}) {
   if (state.busy) return; const generation = state.generation; state.busy = true; render();
   try {
-    const result = await remote(action, { force, ...extra }); state.loggedIn = result.loggedIn === true; state.connectionIssue = '';
+    const result = await remote(action, { force, ...extra }); state.loggedIn = result.loggedIn === true; state.usesDefaultPassword = result.usesDefaultPassword === true; state.connectionIssue = '';
     if (hasDraft()) status(result.snapshot?.etag !== state.etag ? '云端数据已变化；当前草稿保留，请核对后再保存。' : '当前草稿保留。');
     else { applySnapshot(result.snapshot); status(result.warning || (state.source === 'legacy-cache' ? '旧版本机缓存只读 · 请先完成服务端维护迁移' : !state.etag ? '尚未加载新书签库 · 请登录并检查服务端迁移状态' : !state.loggedIn ? '未登录 · 本机缓存只读' : '已同步 · 修改后请保存到云端'), !!result.warning); }
   } finally { if (generation === state.generation) { state.busy = false; render(); } }
 }
 async function switchSite(configUrl) {
-  state.generation++; state.busy = false; state.loggedIn = false; state.connectionIssue = ''; applySnapshot(null); state.configUrl = normalizeConfigUrl(configUrl); state.selected = selectionPreferences[new URL(state.configUrl).origin] || ''; $('siteUrl').value = state.configUrl; $('search').value = '';
+  state.generation++; state.busy = false; state.loggedIn = false; state.usesDefaultPassword = false; state.connectionIssue = ''; applySnapshot(null); state.configUrl = normalizeConfigUrl(configUrl); state.selected = selectionPreferences[new URL(state.configUrl).origin] || ''; $('siteUrl').value = state.configUrl; $('search').value = '';
   $('website').href = new URL(state.configUrl).origin + '/'; $('backend').href = new URL('/account.html', state.configUrl).href; closeMenu(); render();
   const snapshot = await remote('cache.get'); if (snapshot) { applySnapshot(snapshot); render(); status(snapshot.legacy ? '旧版本机缓存只读；联网完成服务器迁移后可编辑' : '已显示本机缓存，正在检查会话'); } await sync();
 }
@@ -261,7 +261,7 @@ $('siteForm').addEventListener('submit', event => {
 $('loginForm').addEventListener('submit', event => { event.preventDefault(); if (state.busy) return; const password = $('password').value; $('password').value = ''; run(() => sync(true, 'login', { username: $('username').value, password })); });
 $('logout').addEventListener('click', () => run(async () => {
   if (state.busy || !confirm('退出会丢弃本页草稿并退出同站点网页会话；本机缓存（包括 Private）不会删除。继续？')) return;
-  editor.reset(); state.dirty = false; state.loggedIn = false; state.document = clone(state.baseline); await sync(false, 'logout'); status('已退出 · 本机缓存保留，可离线浏览');
+  editor.reset(); state.dirty = false; state.loggedIn = false; state.usesDefaultPassword = false; state.document = clone(state.baseline); await sync(false, 'logout'); status('已退出 · 本机缓存保留，可离线浏览');
 }));
 for (const [id, all] of [['clearCache', false], ['clearAllCache', true]]) $(id).addEventListener('click', () => run(async () => {
   if (state.busy || !confirm(`清除${all ? '全部站点' : '当前站点'}本机缓存（含 Private）和打开页面的草稿？云端不会删除。`)) return;

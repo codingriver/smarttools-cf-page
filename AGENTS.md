@@ -18,14 +18,14 @@
 - 公开数据安全边界同样适用于构建时抓取并内联到首页的快照；不得将管理员视图、Private 内容或标记为 private/no-store 的响应作为公开快照。不得为性能或离线需求把管理员完整数据写入 localStorage、Service Worker Cache Storage 等长期缓存。
 - 扩展本机缓存例外（用户明确选择）：`extensions/open-tabs-importer/` 可在扩展自身来源的 IndexedDB 按站点长期保存完整管理员书签（含 Private），并在退出、会话失效、离线或权限撤销后只读展示。缓存不宣称加密，必须提供单独清除入口，不存凭据，不向内容脚本或普通网页提供缓存接口；云端写入仍由服务器鉴权与版本校验。此例外不适用于网站 localStorage、HTTP/SW 缓存、静态数据或公开构建快照。
 - 不要恢复或新增 AES/PBKDF2 旧密文分类兼容逻辑；旧加密段应继续被丢弃。
-- 不要把 `ADMIN_PASS`、`AUTH_SECRET`、KV 明文备份、Cookie token 或真实 Private 数据写入仓库、日志、测试快照或公开资源。
+- 不要把真实 `PASSWORD`、`ADMIN_PASS`、`AUTH_SECRET`、KV 明文备份、Cookie token 或真实 Private 数据写入仓库、日志、测试快照或公开资源。
 - Cookie/session 相关变更必须保持 HttpOnly、Secure、SameSite=Strict 和 HMAC 校验语义。
 
 ## 修改原则
 
 - 保持“单主题”架构：不要重新引入主题路由、主题切换器或 `index1`～`index5` 页面。
 - 保持单管理员模型：不要新增或恢复多用户、公开 slug、inbox、push、P2P、迁移 v2 等已废弃功能入口；旧 `/api/change-password` 继续保持移除，不恢复其入口或兼容路由。
-- 现有 `/api/account/*` 账户安全模块（改密、注销全部设备、临时一次性恢复）属于当前已实现和已文档化的维护范围，不因旧改密入口废弃而删除，也不据此扩展为多用户或新增恢复方式。功能范围调整须由独立任务明确要求。
+- 账户功能按已批准的 v2 协议收敛为登录、会话检查和退出。旧 `/api/login`、`/api/check`、`/api/logout`、`/api/account/*` 返回 JSON 410；旧 `/api/change-password` 保持 JSON 404。不要恢复在线改密、恢复或注销全部设备入口。旧账户实现暂时保留但不可经路由调用；后续清理另行授权。
 - 优先复用现有共享模块；服务端通用逻辑放在 `functions/_shared/`，前端通用逻辑放在 `shared/`。
 - 保持 ES module 风格，避免引入构建链之外的新框架或运行时。
 - 只修改与任务相关的文件；不要提交 `dist/`、`.wrangler/`、`artifacts/`、`node_modules/` 中的生成物，除非任务明确要求。
@@ -35,11 +35,8 @@
 
 - KV 绑定名为 `FAV_KV`；数据源在 `static` 与 `kv` 之间切换。
 - 主要 API：
-  - `POST /api/login`、`POST /api/logout`
-  - `GET/POST /api/account/security`：管理员查询密码来源或注销全部设备
-  - `POST /api/account/change-password`：管理员验证当前密码后改密
-  - `GET/POST /api/account/recovery`：GET 查询恢复是否启用；POST 仅在临时恢复开启且一次性令牌有效时重设密码
-  - `GET /api/check`
+  - `POST /api/v2/auth/login`、`GET /api/v2/auth/session`、`POST /api/v2/auth/logout`
+  - `GET/PUT /api/v2/bookmarks`、`GET /api/v2/bookmarks/meta`
   - `GET /api/data`、`GET /api/data-meta`
   - `POST /api/save`
   - `POST /api/comment`
@@ -47,7 +44,7 @@
   - `GET/POST /api/site-config`
   - `GET/POST/DELETE /api/backups`
   - `POST /api/fetch-page-title`
-- 未知 `/api/*` 路由应返回 JSON 404；旧 `/api/change-password` 继续按已移除路由验收，不与现有 `/api/account/change-password` 混淆。
+- 未知 `/api/*` 路由应返回 JSON 404；旧 `/api/change-password` 为 JSON 404；旧 `/api/account/change-password` 为 JSON 410。
 - 新增或调整 API 时，同步更新 README/README_CN 与验收脚本。
 
 ## 构建与部署
@@ -78,7 +75,7 @@
 - 完整本地验收：`npm test`
 - 在线验收/性能验收只在任务明确涉及线上环境或性能时运行：`npm run test:online`、`npm run test:performance`
 - API 验收会写测试数据；执行前确认 `SMARTTOOLS_BASE_URL` 指向隔离本地环境，不得指向生产或共享数据环境。
-- `test:online` 会下载远程配置、读取管理员凭据并登录；仅在用户明确要求包含管理员登录的在线验收时运行，不作为发布后的自动匿名检查。
+- `test:online` 不下载远程凭据；仅在用户明确要求包含管理员登录的在线验收且显式提供 `SMARTTOOLS_ONLINE_ADMIN=1`、`SMARTTOOLS_ONLINE_USER` 和 `SMARTTOOLS_ONLINE_PASSWORD` 时运行，不作为发布后的自动匿名检查。
 
 验收实现注意事项：
 
@@ -95,8 +92,8 @@ npm run build
 
 npx wrangler@latest pages dev dist \
   --kv FAV_KV \
-  --binding ADMIN_USER=testadmin \
-  --binding ADMIN_PASS=TestPass2026 \
+  --binding USER=testadmin \
+  --binding PASSWORD=TestPass2026 \
   --binding AUTH_SECRET=0123456789abcdef0123456789abcdef \
   --compatibility-date 2026-07-16 \
   --port 8788

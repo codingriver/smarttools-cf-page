@@ -6,8 +6,8 @@
 
 栖页使用同一份 `{schemaVersion:2, updatedAt, roots}` 业务文档贯穿 KV、API、本机 IndexedDB 和页面草稿。根容器显示为分类，内部为多层文件夹；稳定 ID、children 排序、isPrivate 继承、visible 隐藏。只有有效云端保存更新时间，无变化保存保持原时间和 ETag；特殊旧内容只读保留。不新增扩展权限或认证机制。
 
-- 新协议：管理员专用 `GET/PUT /api/v2/bookmarks`、`GET /api/v2/bookmarks/meta`；全量 PUT 必须携带 `baseEtag`，返回确认文档。登录/check/退出及账户安全接口不变。
-- `BOOKMARKS_MODE` 默认 legacy；maintenance 冻结书签接口（503），v2 启用新库并令旧书签接口返回 410；账户安全入口保留在 `/account.html`。不自动迁移、不双写、不回退旧 KV。
+- 新协议：管理员专用 `GET/PUT /api/v2/bookmarks`、`GET /api/v2/bookmarks/meta`；全量 PUT 必须携带 `baseEtag`，返回确认文档。账户登录／会话／退出改用 `/api/v2/auth/*`，旧账户协议返回 410。
+- `BOOKMARKS_MODE` 默认 legacy；maintenance 冻结书签接口（503），v2 启用新库并令旧书签接口返回 410；`/account.html` 改为静态服务端配置说明。不自动迁移、不双写、不回退旧 KV。
 - `npm run prepare:bookmarks-v2 -- <本地备份文件>` 默认只校验；显式 `--output <仓库外新目录>` 才输出备份和候选，不上传。新键 `admin:bookmarks:v2:current` 必须在另行授权的维护窗口核对后初始化；旧键冻结保留，不在本次开发删除。
 - 构建时 `SMARTTOOLS_BOOKMARKS_MODE` 应与服务端模式一致；退休构建不含书签快照。v2/maintenance 的发布检查额外要求 `SMARTTOOLS_CONFIRMED_SERVER_MODE`，它是人工确认，不会查询线上绑定。legacy 原发布快照检查仍保留。
 - 扩展主页账户菜单提供 JSON 导入/导出：导出当前站点最近确认的完整 v2 文档（包含隐藏项和 Private，不含草稿），文件未加密；导入经大小、结构、字段、ID、层级及安全链接校验后确认替换本页草稿，不合并、不立即写缓存或云端。仅登录并加载可写版本后可导入；仍需显式保存，沿用当前 ETag 和确认时间。
@@ -27,7 +27,7 @@
 - 支持完整 JSON、`data.js`、CSV、XLSX、浏览器书签 HTML 和 ZIP 导入导出。
 - Cloudflare KV 在线存储，支持手动备份、自动备份和恢复。
 - 单管理员登录，使用 HttpOnly、Secure、SameSite=Strict Cookie。
-- 后台“账户安全”支持修改 KV 加盐哈希密码和注销全部设备；忘记密码时可由 Cloudflare 临时恢复变量开启一次性恢复流程。
+- 在线改密、注销全部设备及临时恢复接口均已停用；修改账户密码应调整 Pages 环境配置并重新部署。
 - Private 分类只向已登录管理员返回。
 
 ## Private 安全边界
@@ -61,46 +61,15 @@ Production 环境变量：
 
 | 名称 | 类型 | 说明 |
 |---|---|---|
-| `ADMIN_USER` | Secret/变量 | 管理员用户名 |
-| `ADMIN_PASS` | Secret | 初始密码及最终恢复锚点；后台设置 KV 密码后不再用于日常登录 |
-| `AUTH_SECRET` | Secret | Cookie HMAC 密钥，至少 16 字符 |
-| `PASSWORD_RECOVERY_ENABLED` | 临时变量 | 设为 `true` 时开启管理员恢复入口 |
-| `PASSWORD_RECOVERY_TOKEN` | 临时 Secret | 一次性恢复令牌，至少 32 字符；恢复后立即删除 |
+| `USER` | 环境变量或 Secret | 管理员账号；缺失时默认 `admin` |
+| `PASSWORD` | Secret | 管理员密码；缺失时默认使用公开的 `codingriver2026` |
+| `AUTH_SECRET` | Secret | 独立的 HMAC 会话签名密钥，至少 16 字符，必须配置 |
 
-KV 绑定：
+继续绑定 `FAV_KV`。**生产环境务必设置独立 PASSWORD。** 缺失时自动回退公开默认密码，属于不安全配置；显式配置为空或类型错误时拒绝登录，不回退默认值。`USER` 和 `PASSWORD` 可单独覆盖；不要把密码复用作 `AUTH_SECRET`。旧 `ADMIN_USER`、`ADMIN_PASS`、KV 中的 `admin:credentials` 及恢复变量不参与新协议鉴权，保留配置也不会覆盖默认密码。
 
-| Binding | 资源 |
-|---|---|
-| `FAV_KV` | SmartTools KV namespace |
+## 管理员账号密码与已停用的维护功能
 
-建议将 `ADMIN_PASS`、`AUTH_SECRET` 和临时的 `PASSWORD_RECOVERY_TOKEN` 设置为加密 Secret。
-
-## 账户密码与恢复
-
-旧 `/api/change-password` 接口保持移除并返回 JSON 404。现有 `/api/account/security`、`/api/account/change-password` 和 `/api/account/recovery` 仍属于单管理员账户安全模块的维护范围；维护这些功能不等于恢复旧接口或增加多用户能力。
-
-日常改密流程：
-
-1. 使用当前密码登录 `/config.html`。
-2. 点击顶部“账户安全”。
-3. 输入当前密码和至少 10 个字符的新密码。
-4. 保存后，新密码会用 `PBKDF2-SHA-256`、随机盐和 310,000 次迭代写入 KV；不会保存明文。
-5. 密码修改会递增会话版本并注销所有设备，请使用新密码重新登录。
-
-密码来源规则：KV 中没有自定义凭据时使用 Cloudflare `ADMIN_PASS`；一旦在后台设置 KV 密码，日常登录只接受该 KV 密码。修改 `ADMIN_PASS` 不会覆盖已有 KV 密码。
-
-忘记 KV 密码时，按以下方式恢复管理权：
-
-1. 在 Cloudflare Pages 项目的 Production Variables and Secrets 中临时配置：
-   - `PASSWORD_RECOVERY_ENABLED=true`
-   - `PASSWORD_RECOVERY_TOKEN=<至少 32 字符、从未使用过的随机令牌>`
-2. 保持 `ADMIN_USER`、`ADMIN_PASS`、`AUTH_SECRET` 和 `FAV_KV` 正常配置；`AUTH_SECRET` 至少 16 字符。
-3. 重试最近一次生产部署，或重新部署，使 Pages Functions 读取新变量。
-4. 访问 `/config.html?recover=1`，在页面表单中输入恢复令牌和新密码。不要把令牌放在 URL、聊天记录或截图中。
-5. 恢复成功后，旧密码和所有旧 Cookie 都会失效；同一个恢复令牌也不能再次使用。
-6. 立即从 Cloudflare 删除 `PASSWORD_RECOVERY_ENABLED` 和 `PASSWORD_RECOVERY_TOKEN`，再重试部署或重新部署，确认登录页不再显示恢复入口。
-
-如果只是修改 Cloudflare `ADMIN_PASS`，但 KV 中已经存在自定义密码，登录密码不会自动回退。应使用上述一次性恢复流程；只有在 KV 中不存在 `admin:credentials` 时，`ADMIN_PASS` 才作为初始登录密码。恢复凭据不会进入站点配置、收藏备份、完整导出或公开 API。
+在现有 Cloudflare Pages 项目环境设置中更新 `USER` 和／或 `PASSWORD`，重新部署后重新登录。修改账号、密码或 `AUTH_SECRET` 后，新配置实例将拒绝旧 v2 会话；部署切换期间不保证瞬时全局失效。旧 Cookie 不接受，退出或改密不会删除扩展本机含 Private 的长期缓存，共用设备请另行清除。`/account.html` 只显示配置说明，不再提供在线改密、恢复或注销全部设备。旧登录、检查、退出和 `/api/account/*` 接口在所有模式返回 JSON 410；旧 `/api/change-password` 继续 JSON 404。旧 KV 凭据保留但不再被新协议读取，本轮不删除、不迁移。
 
 ## 本地开发与验收
 
@@ -117,8 +86,8 @@ npm run build
 
 npx wrangler@latest pages dev dist \
   --kv FAV_KV \
-  --binding ADMIN_USER=testadmin \
-  --binding ADMIN_PASS=TestPass2026 \
+  --binding USER=testadmin \
+  --binding PASSWORD=TestPass2026 \
   --binding AUTH_SECRET=0123456789abcdef0123456789abcdef \
   --compatibility-date 2026-07-16 \
   --port 8788
@@ -148,18 +117,18 @@ npm run deploy
 - **准备发布**：构建、执行 `npm run verify:deploy`，并按改动范围选择本地验收，不上传。
 - **实际发布**：仅在明确要求时更新已有 `smarttools` Cloudflare Pages 项目，包括 Pages Functions；核实账户和生产分支（当前脚本为 `main`）。不自动新建 Pages、独立 Worker、KV，也不自动修改 secrets、绑定或域名。
 
-`npm run deploy` 会在校验、上传前重新构建，因此不保证与此前测试的产物逐字节相同。API 验收会写入 fixture，必须使用隔离本地数据。`npm run test:online` 会读取远程管理员配置并登录，须明确要求管理员在线验收，不能作为部署后的自动匿名检查。Skill 与 Agent 规则文件不属于公开部署资源。
+`npm run deploy` 会在校验、上传前重新构建，因此不保证与此前测试的产物逐字节相同。API 验收会写入 fixture，必须使用隔离本地数据。`npm run test:online` 须明确要求管理员在线验收，并显式提供 `SMARTTOOLS_ONLINE_ADMIN=1`、`SMARTTOOLS_ONLINE_USER`、`SMARTTOOLS_ONLINE_PASSWORD`；不再下载远程配置，不作为部署后的自动匿名检查。Skill 与 Agent 规则文件不属于公开部署资源。
 
 ## 主要 API
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| POST | `/api/login` | 否 | 管理员登录 |
-| POST | `/api/logout` | 否 | 清除会话 |
-| GET/POST | `/api/account/security` | 管理员 | 查询密码来源或注销全部设备 |
-| POST | `/api/account/change-password` | 管理员 | 验证当前密码并修改 KV 密码 |
-| GET/POST | `/api/account/recovery` | 临时恢复令牌 | 查询恢复状态或一次性重设密码 |
-| GET | `/api/check` | 否 | 会话和服务配置状态 |
+| POST | `/api/v2/auth/login` | 否 | 管理员登录 |
+| GET | `/api/v2/auth/session` | 否 | 会话及服务配置状态，已登录时返回默认密码警告标记 |
+| POST | `/api/v2/auth/logout` | 否 | 清除会话，不删除扩展缓存 |
+| GET/PUT | `/api/v2/bookmarks` | 管理员 | 读取／保存完整 v2 书签文档，PUT 须提交 baseEtag |
+| GET | `/api/v2/bookmarks/meta` | 管理员 | 读取版本及更新时间 |
+| 任意 | `/api/login`、`/api/check`、`/api/logout`、`/api/account/*` | 已停用 | JSON 410，不转接旧协议 |
 | GET | `/api/data` | 可选 | 匿名返回公开数据，管理员返回完整数据 |
 | GET | `/api/data-meta` | 可选 | 当前可见数据的哈希与 ETag |
 | POST | `/api/save` | 管理员 | 保存完整数据或分类增量 |

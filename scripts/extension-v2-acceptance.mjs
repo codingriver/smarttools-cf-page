@@ -6,9 +6,9 @@ import { cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fixture, testEnv } from './bookmarks-v2-fixture.mjs';
 import { CURRENT_KEY, handleBookmarks } from '../functions/_shared/bookmarks-v2.js';
-import { onRequestPost as login } from '../functions/api/login.js';
-import { onRequestGet as check } from '../functions/api/check.js';
-import { onRequestPost as logout } from '../functions/api/logout.js';
+import { onRequestPost as login } from '../functions/api/v2/auth/login.js';
+import { onRequestGet as check } from '../functions/api/v2/auth/session.js';
+import { onRequestPost as logout } from '../functions/api/v2/auth/logout.js';
 const env=testEnv();env.FAV_KV.data.set(CURRENT_KEY,JSON.stringify({document:fixture(),etag:'"initial"'}));
 let mode='normal', calls=[];
 const server=http.createServer(async(req,res)=>{
@@ -18,10 +18,10 @@ const server=http.createServer(async(req,res)=>{
   calls.push([req.method,req.url]);
   let response;
   if(mode==='offline') response=new Response(JSON.stringify({ok:false,error:'Synthetic offline'}),{status:503});
-  else if(mode==='invalid' && req.url.startsWith('/api/v2/')) response=new Response(JSON.stringify({ok:true,document:{schemaVersion:2,roots:[]},meta:{view:'public',etag:'bad'}}));
-  else if(req.url==='/api/login') response=await login({request,env});
-  else if(req.url==='/api/logout') response=await logout({request,env});
-  else if(req.url==='/api/check') response=await check({request,env});
+  else if(mode==='invalid' && req.url.startsWith('/api/v2/bookmarks')) response=new Response(JSON.stringify({ok:true,document:{schemaVersion:2,roots:[]},meta:{view:'public',etag:'bad'}}));
+  else if(req.url==='/api/v2/auth/login') response=await login({request,env});
+  else if(req.url==='/api/v2/auth/logout') response=await logout({request,env});
+  else if(req.url==='/api/v2/auth/session') response=await check({request,env});
   else if(req.url.startsWith('/api/v2/bookmarks')) response=await handleBookmarks({request,env},req.url.endsWith('/meta'));
   else response=new Response('Not found',{status:404});
   res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));
@@ -125,4 +125,3 @@ try {
  assert.deepEqual(errors,[]);
  console.log('PASS real MV3: JSON import/export/save isolation and file-read guards, Cookie login, recursive search/folders, shared confirmed cache, independent drafts/conflict, menu capture/dedupe, offline/logout/restart/clear, legacy IDB upgrade, per-site isolation, invalid response/permission guards, whitelist and responsive layout');
 } finally {await context.close();await new Promise(resolve=>server.close(resolve));}
-

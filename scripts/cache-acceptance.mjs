@@ -1,12 +1,29 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import http from 'node:http';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 
 // A real HTTP server and real service worker: routing/mocking requests in Playwright
 // would bypass the HTTP cache behavior that distinguishes F5 from hard reload.
-const dist = path.resolve('dist');
+let dist = path.resolve('dist');
+let fixtureDirectory = null;
+// In v2 deployments the website homepage is retired. Test the old site's cache
+// migration in an isolated legacy build instead of treating the retired page as
+// the old card UI. The fixture never contacts a remote snapshot endpoint.
+if ((await readFile(path.join(dist, 'index.html'), 'utf8')).includes('书签已迁往栖页扩展')) {
+    const fixtureRoot = path.resolve('.wrangler');
+    await mkdir(fixtureRoot, { recursive: true });
+    fixtureDirectory = await mkdtemp(path.join(fixtureRoot, 'cache-acceptance-'));
+    const built = spawnSync(process.execPath, ['scripts/prepare-deploy.mjs'], {
+        cwd: process.cwd(), encoding: 'utf8',
+        env: { ...process.env, SMARTTOOLS_BOOKMARKS_MODE: 'legacy', SMARTTOOLS_INLINE_SNAPSHOT: '0',
+            SMARTTOOLS_OUTPUT_DIR: path.relative(process.cwd(), fixtureDirectory), SMARTTOOLS_OUTPUT_CLEAN: '0' }
+    });
+    if (built.status !== 0) throw new Error(`Legacy cache fixture build failed: ${built.stderr || built.stdout}`);
+    dist = fixtureDirectory;
+}
 const index = (await readFile(path.join(dist, 'index.html'), 'utf8'))
     .replace(/<script data-inline-data="1"[^>]*>[\s\S]*?<\/script>/, '');
 const worker = await readFile(path.join(dist, 'sw.js'), 'utf8');
@@ -183,4 +200,10 @@ try {
 } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
+    if (fixtureDirectory) {
+        const fixtureRoot = path.resolve('.wrangler');
+        if (path.dirname(fixtureDirectory) !== fixtureRoot || !path.basename(fixtureDirectory).startsWith('cache-acceptance-'))
+            throw new Error('Unexpected cache fixture cleanup path');
+        await rm(fixtureDirectory, { recursive: true, force: true });
+    }
 }

@@ -14,7 +14,7 @@ export async function client(action, configUrl, extra = {}) {
 }
 // Keep last verified identity separate from the ability to write. A network/permission failure is not logout.
 export function applyClientError(state, error) {
-  if (error.status === 401) { state.loggedIn = false; state.connectionIssue = ''; }
+  if (error.status === 401) { state.loggedIn = false; state.usesDefaultPassword = false; state.connectionIssue = ''; }
   else if (error.status === 0 || error.status === 403 || error.status >= 500 || error.outcomeUnknown || error.code === 'INVALID_RESPONSE') state.connectionIssue = error.message;
 }
 export function sessionLabel(state) {

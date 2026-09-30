@@ -18,8 +18,9 @@ export function bindCacheMenu(menu) {
   });
 }
 
-export function renderAccountMenu(menu, { loggedIn, busy, connectionIssue }) {
+export function renderAccountMenu(menu, { loggedIn, busy, connectionIssue, usesDefaultPassword }) {
   const find = selector => menu.querySelector(selector);
+  find('#defaultPasswordWarning').hidden = !loggedIn || !usesDefaultPassword;
   find('#checkConnection').hidden = !connectionIssue;
   find('#checkConnection').disabled = !!busy;
   find('#accountAvatar').hidden = !loggedIn;

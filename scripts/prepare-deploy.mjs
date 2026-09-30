@@ -112,6 +112,9 @@ for (const entry of publicEntries) {
   );
 }
 
+// Do not publish retired interactive account maintenance scripts or forms.
+for (const name of ['account-maintenance.js']) await rm(path.join(outputDirectory, 'shared', name), { force: true });
+
 // 把静态兜底 data.js 里的外部图标也下载到本地（KV 为空时的离线回退）
 try {
   if (bookmarkMode !== 'legacy') throw new Error('Retirement build has no legacy icons');

@@ -1,234 +1,69 @@
-import { onRequestGet as checkStatus } from '../functions/api/check.js';
-import { onRequestPost as login } from '../functions/api/login.js';
-import { onRequestPost as changePassword } from '../functions/api/account/change-password.js';
-import {
-  onRequestGet as getSecurity,
-  onRequestPost as updateSecurity
-} from '../functions/api/account/security.js';
-import {
-  onRequestGet as getRecovery,
-  onRequestPost as recoverPassword
-} from '../functions/api/account/recovery.js';
-import {
-  ADMIN_CREDENTIALS_KEY,
-  ADMIN_RECOVERY_USED_PREFIX,
-  PASSWORD_ALGORITHM,
-  PASSWORD_ITERATIONS
-} from '../functions/_shared/account-security.js';
-
-const username = 'testadmin';
-const environmentPassword = 'EnvironmentPass2026!';
-const customPassword = 'CustomPassword2026!';
-const recoveredPassword = 'RecoveredPassword2026!';
-const recoveryToken = 'one-time-recovery-token-2026-abcdefghijk';
-
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
-
-class MemoryKV {
-  constructor() {
-    this.values = new Map();
-    this.metadata = new Map();
-  }
-
-  async get(key) {
-    return this.values.has(key) ? this.values.get(key) : null;
-  }
-
-  async getWithMetadata(key) {
-    return {
-      value: await this.get(key),
-      metadata: this.metadata.get(key) || null
-    };
-  }
-
-  async put(key, value, options = {}) {
-    this.values.set(key, String(value));
-    if (options.metadata) this.metadata.set(key, options.metadata);
-  }
-
-  async delete(key) {
-    this.values.delete(key);
-    this.metadata.delete(key);
-  }
-}
-
-const kv = new MemoryKV();
-const env = {
-  FAV_KV: kv,
-  ADMIN_USER: username,
-  ADMIN_PASS: environmentPassword,
-  AUTH_SECRET: '0123456789abcdef0123456789abcdef'
+import assert from 'node:assert/strict';
+import { onRequestPost as login } from '../functions/api/v2/auth/login.js';
+import { onRequestGet as check } from '../functions/api/v2/auth/session.js';
+import { onRequestPost as logout } from '../functions/api/v2/auth/logout.js';
+import { credentials, session, createSessionToken, requireV2Auth } from '../functions/_shared/auth-v2.js';
+import { createToken } from '../functions/_shared/auth.js';
+import { onRequest as middleware } from '../functions/_middleware.js';
+const SECRET = '0123456789abcdef0123456789abcdef';
+const env = { FAV_KV: new Map(), AUTH_SECRET: SECRET };
+// In-memory KV simulates best-effort lockouts and retains intentionally corrupted legacy credentials.
+const records = new Map();
+env.FAV_KV = {
+  async getWithMetadata(key) { return { value: records.get(key)?.value || null, metadata: records.get(key)?.metadata || null }; },
+  async put(key, value, opts) { records.set(key, {value, metadata:opts?.metadata}); },
+  async delete(key) { records.delete(key); },
+  async get(key) { return records.get(key)?.value || null; }
 };
-
-async function invoke(handler, path, {
-  method = 'GET',
-  body,
-  cookie,
-  ip = '203.0.113.10',
-  bindings = env
-} = {}) {
-  const headers = new Headers({ 'CF-Connecting-IP': ip });
-  if (body !== undefined) headers.set('Content-Type', 'application/json');
-  if (cookie) headers.set('Cookie', cookie);
-  const request = new Request(`https://smarttools.test${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
-  const response = await handler({ request, env: bindings });
-  const payload = await response.json();
-  return { response, payload };
-}
-
-function cookieFrom(result) {
-  return (result.response.headers.get('set-cookie') || '').split(';')[0];
-}
-
-async function loginWith(password, ip) {
-  return invoke(login, '/api/login', {
-    method: 'POST',
-    body: { username, password },
-    ip
-  });
-}
-
-const initialStatus = await invoke(checkStatus, '/api/check');
-assert(initialStatus.response.status === 200, 'initial status request failed');
-assert(initialStatus.payload.recoveryEnabled === false, 'recovery must be disabled by default');
-
-const recoveryDisabled = await invoke(getRecovery, '/api/account/recovery');
-assert(recoveryDisabled.payload.recoveryEnabled === false, 'recovery endpoint exposed an inactive flow');
-
-const initialLogin = await loginWith(environmentPassword, '203.0.113.11');
-assert(initialLogin.response.status === 200, 'environment password login failed');
-const initialCookie = cookieFrom(initialLogin);
-assert(initialCookie.startsWith('auth='), 'initial auth cookie missing');
-
-const secondLogin = await loginWith(environmentPassword, '203.0.113.12');
-assert(secondLogin.response.status === 200, 'second device login failed');
-const secondCookie = cookieFrom(secondLogin);
-
-const initialSecurity = await invoke(getSecurity, '/api/account/security', { cookie: initialCookie });
-assert(initialSecurity.response.status === 200, 'authenticated security status failed');
-assert(initialSecurity.payload.passwordSource === 'environment', 'initial password source is not environment');
-
-const weakPassword = await invoke(changePassword, '/api/account/change-password', {
-  method: 'POST',
-  cookie: initialCookie,
-  body: { currentPassword: environmentPassword, newPassword: 'short' }
-});
-assert(weakPassword.response.status === 400, 'weak password was accepted');
-
-const wrongCurrentPassword = await invoke(changePassword, '/api/account/change-password', {
-  method: 'POST',
-  cookie: initialCookie,
-  body: { currentPassword: 'WrongCurrentPassword!', newPassword: customPassword }
-});
-assert(wrongCurrentPassword.response.status === 401, 'wrong current password was accepted');
-
-const changed = await invoke(changePassword, '/api/account/change-password', {
-  method: 'POST',
-  cookie: initialCookie,
-  body: { currentPassword: environmentPassword, newPassword: customPassword }
-});
-assert(changed.response.status === 200 && changed.payload.sessionsRevoked, 'password change failed');
-assert((changed.response.headers.get('set-cookie') || '').includes('Max-Age=0'), 'password change did not clear current cookie');
-
-const storedCredentialsText = await kv.get(ADMIN_CREDENTIALS_KEY);
-const storedCredentials = JSON.parse(storedCredentialsText);
-assert(storedCredentials.algorithm === PASSWORD_ALGORITHM, 'credential algorithm is invalid');
-assert(storedCredentials.iterations === PASSWORD_ITERATIONS, 'PBKDF2 iteration count is invalid');
-assert(storedCredentials.sessionVersion === 1, 'password change did not increment session version');
-assert(storedCredentials.salt && storedCredentials.hash, 'salted password hash is incomplete');
-assert(!storedCredentialsText.includes(environmentPassword), 'environment password leaked into KV');
-assert(!storedCredentialsText.includes(customPassword), 'custom password leaked into KV');
-assert(!Object.hasOwn(storedCredentials, 'password'), 'plaintext password field exists in KV');
-
-const staleSecondSession = await invoke(getSecurity, '/api/account/security', { cookie: secondCookie });
-assert(staleSecondSession.response.status === 401, 'old device session survived password change');
-
-const oldPasswordLogin = await loginWith(environmentPassword, '203.0.113.13');
-assert(oldPasswordLogin.response.status === 401, 'environment password still works after custom password was set');
-
-const customLogin = await loginWith(customPassword, '203.0.113.14');
-assert(customLogin.response.status === 200, 'custom KV password login failed');
-const customCookie = cookieFrom(customLogin);
-
-const customSecurity = await invoke(getSecurity, '/api/account/security', { cookie: customCookie });
-assert(customSecurity.payload.passwordSource === 'custom', 'custom password source was not reported');
-
-const revoked = await invoke(updateSecurity, '/api/account/security', {
-  method: 'POST',
-  cookie: customCookie,
-  body: { action: 'revoke-sessions' }
-});
-assert(revoked.response.status === 200 && revoked.payload.sessionsRevoked, 'session revocation failed');
-const revokedSession = await invoke(getSecurity, '/api/account/security', { cookie: customCookie });
-assert(revokedSession.response.status === 401, 'revoked session remains valid');
-
-const recoveryBindings = {
-  ...env,
-  PASSWORD_RECOVERY_ENABLED: 'true',
-  PASSWORD_RECOVERY_TOKEN: recoveryToken
+const invoke = async (handler, method, path, body, cookie, config = env, ip = 'test-ip') => {
+  const headers = { 'CF-Connecting-IP': ip, ...(cookie ? {Cookie:cookie} : {}), ...(body === undefined ? {} : {'Content-Type':'application/json'}) };
+  const request = new Request('https://test.invalid' + path, {method,headers,...(body === undefined ? {} : {body:JSON.stringify(body)})});
+  return handler({request,env:config});
 };
-const recoveryStatus = await invoke(getRecovery, '/api/account/recovery', { bindings: recoveryBindings });
-assert(recoveryStatus.payload.recoveryEnabled === true, 'configured recovery flow is not enabled');
-
-const sessionBeforeRecovery = await loginWith(customPassword, '203.0.113.15');
-assert(sessionBeforeRecovery.response.status === 200, 'pre-recovery login failed');
-const preRecoveryCookie = cookieFrom(sessionBeforeRecovery);
-
-const wrongRecovery = await invoke(recoverPassword, '/api/account/recovery', {
-  method: 'POST',
-  bindings: recoveryBindings,
-  ip: '203.0.113.16',
-  body: { recoveryToken: 'wrong-recovery-token-00000000000000', newPassword: recoveredPassword }
-});
-assert(wrongRecovery.response.status === 401, 'invalid recovery token was accepted');
-
-const recovered = await invoke(recoverPassword, '/api/account/recovery', {
-  method: 'POST',
-  bindings: recoveryBindings,
-  ip: '203.0.113.17',
-  body: { recoveryToken, newPassword: recoveredPassword }
-});
-assert(recovered.response.status === 200 && recovered.payload.recoveryTokenConsumed, 'password recovery failed');
-assert((recovered.response.headers.get('set-cookie') || '').includes('Max-Age=0'), 'recovery did not clear current cookie');
-
-const recoveryKeys = [...kv.values.keys()].filter(key => key.startsWith(ADMIN_RECOVERY_USED_PREFIX));
-assert(recoveryKeys.length === 1, 'recovery token fingerprint was not recorded exactly once');
-assert(!recoveryKeys[0].includes(recoveryToken), 'raw recovery token leaked into its KV key');
-assert(!(await kv.get(recoveryKeys[0])).includes(recoveryToken), 'raw recovery token leaked into its KV value');
-
-const staleRecoverySession = await invoke(getSecurity, '/api/account/security', { cookie: preRecoveryCookie });
-assert(staleRecoverySession.response.status === 401, 'old session survived password recovery');
-
-const repeatedRecovery = await invoke(recoverPassword, '/api/account/recovery', {
-  method: 'POST',
-  bindings: recoveryBindings,
-  ip: '203.0.113.18',
-  body: { recoveryToken, newPassword: 'AnotherSecurePassword2026!' }
-});
-assert(repeatedRecovery.response.status === 409, 'consumed recovery token was reusable');
-
-const customAfterRecovery = await loginWith(customPassword, '203.0.113.19');
-assert(customAfterRecovery.response.status === 401, 'pre-recovery custom password remains valid');
-const recoveredLogin = await loginWith(recoveredPassword, '203.0.113.20');
-assert(recoveredLogin.response.status === 200, 'recovered password login failed');
-
-const finalCredentialText = await kv.get(ADMIN_CREDENTIALS_KEY);
-assert(!finalCredentialText.includes(recoveryToken), 'recovery token leaked into credential record');
-assert(!finalCredentialText.includes(recoveredPassword), 'recovered password leaked into credential record');
-
-console.log(JSON.stringify({
-  ok: true,
-  passwordHashing: `${PASSWORD_ALGORITHM}/${PASSWORD_ITERATIONS}`,
-  environmentFallbackBeforeCustomPassword: true,
-  oldPasswordInvalidated: true,
-  oldSessionsInvalidated: true,
-  allSessionsRevoked: true,
-  oneTimeRecovery: true,
-  plaintextSecretsInCredentials: false
-}, null, 2));
+const signIn = (body, config = env, ip) => invoke(login,'POST','/api/v2/auth/login',body,null,config,ip);
+assert.deepEqual(credentials(env), {user:'admin',password:'codingriver2026',secret:SECRET,usesDefaultPassword:true});
+assert.equal((await invoke(check,'GET','/api/v2/auth/session')).status,200);
+const anonymous = await (await invoke(check,'GET','/api/v2/auth/session')).json();
+assert.equal(anonymous.loggedIn,false);assert.equal(anonymous.configured,true);assert(!Object.hasOwn(anonymous,'usesDefaultPassword'));
+for(const config of [ {USER:''}, {PASSWORD:''}, {USER:7}, {PASSWORD:7}, {AUTH_SECRET:'short'} ]) {
+ const value={...env,...config};
+ assert.equal((await signIn({username:'admin',password:'codingriver2026'},value)).status,503);
+ assert.equal((await (await invoke(check,'GET','/api/v2/auth/session',undefined,null,value)).json()).configured,false);
+ assert.equal((await requireV2Auth(new Request('https://test.invalid/api/v2/bookmarks'),value)).status,503);
+}
+assert.equal((await signIn({username:'admin'})).status,400);
+assert.equal((await signIn({username:'admin',password:'bad'})).status,401);
+const successful=await signIn({username:'admin',password:'codingriver2026'});
+assert.equal(successful.status,200);assert.equal(successful.headers.get('Cache-Control'),'private, no-store');
+const setCookie=successful.headers.get('Set-Cookie');for(const flag of ['HttpOnly','Secure','SameSite=Strict','Max-Age=604800'])assert(setCookie.includes(flag));
+const cookie=setCookie.split(';')[0];
+const authenticated=await (await invoke(check,'GET','/api/v2/auth/session',undefined,cookie)).json();
+assert.equal(authenticated.loggedIn,true);assert.equal(authenticated.usesDefaultPassword,true);
+assert.equal((await requireV2Auth(new Request('https://test.invalid/api/v2/bookmarks',{headers:{Cookie:cookie}}),env)),null);
+const renamed={...env,USER:'new-user'};const updated={...env,PASSWORD:'different-password'};
+const rotated={...env,AUTH_SECRET:'another-secret-0123456789abcdef'};
+for(const config of [renamed,updated,rotated]) assert.equal(await session(new Request('https://test.invalid',{headers:{Cookie:cookie}}),config),null);
+assert.equal((await signIn({username:'new-user',password:'codingriver2026'},renamed)).status,200);
+assert.equal((await signIn({username:'admin',password:'different-password'},updated)).status,200);
+assert.equal((await (await invoke(check,'GET','/api/v2/auth/session',undefined,(await signIn({username:'admin',password:'different-password'},updated)).headers.get('Set-Cookie').split(';')[0],updated)).json()).usesDefaultPassword,false);
+const legacyCookie='auth=' + await createToken('admin',SECRET);
+assert.equal(await session(new Request('https://test.invalid',{headers:{Cookie:legacyCookie}}),env),null);
+records.set('admin:credentials',{value:'not valid JSON'});
+assert.equal((await signIn({username:'admin',password:'codingriver2026'})).status,200);
+const extra={...env,ADMIN_USER:'someone-else',ADMIN_PASS:'ignored'};
+assert.equal((await signIn({username:'admin',password:'codingriver2026'},extra)).status,200);
+for(let i=0;i<5;i++)assert.equal((await signIn({username:'bad',password:'bad'},env,'locked-ip')).status,401);
+assert.equal((await signIn({username:'admin',password:'codingriver2026'},env,'locked-ip')).status,429);
+for(let i=0;i<2;i++) {const out=await invoke(logout,'POST','/api/v2/auth/logout');assert.equal(out.status,200);assert(out.headers.get('Set-Cookie').includes('Max-Age=0'));}
+assert.equal(await session(new Request('https://test.invalid',{headers:{Cookie:'auth=' + await createSessionToken(env)}}),env) !== null,true);
+for(const mode of ['legacy','maintenance','v2']){
+ const target={...env,BOOKMARKS_MODE:mode};
+ for(const path of ['/api/login','/api/check','/api/logout','/api/account/security','/api/account/change-password','/api/account/recovery']){
+  for(const suffix of ['', '/']){const response=await middleware({request:new Request('https://test.invalid'+path+suffix,{method:'POST'}),env:target,next:()=>{throw Error('Retired route reached handler');}});assert.equal(response.status,410);assert.equal((await response.json()).code,'AUTH_PROTOCOL_RETIRED');}
+ }
+ for(const path of ['/api/change-password','/api/does-not-exist']){
+  const response=await middleware({request:new Request('https://test.invalid'+path),env:target,next:()=>new Response(JSON.stringify({ok:false,error:'not found'}),{status:404,headers:{'Content-Type':'application/json'}})});
+  assert.equal(response.status,404);assert.match(response.headers.get('Content-Type'),/json/);
+ }
+}
+console.log('PASS v2 default/overridden credentials, session rotation, legacy isolation, throttling, cookie safety and retired routes');

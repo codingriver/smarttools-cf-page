@@ -77,18 +77,18 @@ async function commit(configUrl, revision, data) {
 async function sync(configUrl, revision, force) {
   let cached = null, warning;
   try { cached = await readSnapshot(origin(configUrl)); } catch (error) { warning = error.message; }
-  const check = await request(configUrl, revision, '/api/check');
+  const check = await request(configUrl, revision, '/api/v2/auth/session');
   notify('auth', origin(configUrl), { loggedIn: check.loggedIn === true });
   if (!check.loggedIn) return { loggedIn: false, snapshot: cached, warning };
   if (cached?.schema === 2 && !force) {
     const meta = await request(configUrl, revision, '/api/v2/bookmarks/meta');
     if (meta.schemaVersion !== 2 || typeof meta.etag !== 'string' || !meta.etag || !Number.isSafeInteger(meta.updatedAt) || meta.updatedAt < 0) throw failure('无效的书签版本响应，本机缓存保留', 502, { code: 'INVALID_RESPONSE' });
-    if (meta.etag === cached.etag) return { loggedIn: true, snapshot: cached, warning };
-    if (meta.updatedAt <= cached.document.updatedAt) return { loggedIn: true, snapshot: cached, warning: '云端副本尚未确认更新，保留本机已确认版本，请稍后核对' };
+    if (meta.etag === cached.etag) return { loggedIn: true, usesDefaultPassword: check.usesDefaultPassword === true, snapshot: cached, warning };
+    if (meta.updatedAt <= cached.document.updatedAt) return { loggedIn: true, usesDefaultPassword: check.usesDefaultPassword === true, snapshot: cached, warning: '云端副本尚未确认更新，保留本机已确认版本，请稍后核对' };
   }
   const data = await fullData(configUrl, revision);
-  if (cached?.schema === 2 && data.meta.etag !== cached.etag && data.document.updatedAt <= cached.document.updatedAt) return { loggedIn: true, snapshot: cached, warning: '云端副本版本较旧或存在并发变化，保留本机确认版本' };
-  return { loggedIn: true, ...await commit(configUrl, revision, data) };
+  if (cached?.schema === 2 && data.meta.etag !== cached.etag && data.document.updatedAt <= cached.document.updatedAt) return { loggedIn: true, usesDefaultPassword: check.usesDefaultPassword === true, snapshot: cached, warning: '云端副本版本较旧或存在并发变化，保留本机确认版本' };
+  return { loggedIn: true, usesDefaultPassword: check.usesDefaultPassword === true, ...await commit(configUrl, revision, data) };
 }
 let lastWrite = 0;
 async function putDocument(configUrl, revision, document, baseEtag) {
@@ -194,14 +194,14 @@ export function dispatch(message, sender = {}) {
     switch (message.action) {
       case 'sync': return sync(configUrl, revision, message.force === true);
       case 'login': {
-        await request(configUrl, revision, '/api/login', { username: message.username, password: message.password });
+        await request(configUrl, revision, '/api/v2/auth/login', { username: message.username, password: message.password });
         const value = await sync(configUrl, revision, true);
         if (!value.loggedIn) throw failure('浏览器 Cookie 策略阻止了会话，请检查授权和第三方 Cookie 设置，或使用网站后台', 401);
         return value;
       }
       case 'logout':
         notify('auth', origin(configUrl), { loggedIn: false });
-        await request(configUrl, revision, '/api/logout', {});
+        await request(configUrl, revision, '/api/v2/auth/logout', {});
         return { loggedIn: false, snapshot: await readSnapshot(origin(configUrl)) };
       case 'save': return save(configUrl, revision, message);
       case 'cache.clear':

@@ -4,6 +4,7 @@ export function mountAccount(host) {
       <summary id="accountTrigger" aria-label="登录与站点设置"><span id="accountAvatar" class="account-avatar" aria-hidden="true" hidden>管</span><span id="accountLabel">登录</span><span aria-hidden="true" class="account-chevron">⌄</span></summary>
       <div class="account-panel" aria-label="账户与缓存设置">
         <div class="account-heading"><div><strong id="accountTitle">登录栖页</strong><div id="session" class="muted">尚未连接</div></div><button id="logout" type="button" hidden>退出登录</button></div>
+        <p id="defaultPasswordWarning" role="alert" hidden>当前使用公开默认密码，请在服务端配置 PASSWORD</p>
         <section class="connection" aria-label="站点与登录">
           <form id="loginForm"><label for="username">管理员账号</label><input id="username" autocomplete="username" placeholder="用户名" required><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" placeholder="管理员密码" required><button class="primary">登录</button></form>
           <details id="siteSettings" class="site-settings"><summary>高级设置</summary><div class="site-settings-panel">

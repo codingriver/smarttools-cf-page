@@ -1,205 +1,30 @@
+import assert from 'node:assert/strict';
+// Isolated local Pages only: this test deliberately exercises no production endpoint.
 const base = process.env.SMARTTOOLS_BASE_URL || 'http://127.0.0.1:8788';
+const host = new URL(base);
+assert(['localhost','127.0.0.1','[::1]'].includes(host.hostname), 'API acceptance must use a loopback server');
 const username = process.env.SMARTTOOLS_TEST_USER || 'testadmin';
 const password = process.env.SMARTTOOLS_TEST_PASS || 'TestPass2026';
-
-function assert(condition, message) {
-    if (!condition) throw new Error(message);
+async function call(path, method='GET', body, cookie) {
+  const response = await fetch(base+path, { method, headers:{...(cookie?{Cookie:cookie}:{}),...(body === undefined?{}:{'Content-Type':'application/json'})},...(body === undefined?{}:{body:JSON.stringify(body)}) });
+  assert.match(response.headers.get('Content-Type') || '', /json/, `non-JSON response: ${path}`);
+  return {response,body:await response.json()};
 }
-
-async function request(path, options = {}) {
-    const response = await fetch(base + path, options);
-    const contentType = response.headers.get('content-type') || '';
-    const body = contentType.includes('json') ? await response.json() : await response.text();
-    return { response, body };
+const anon=await call('/api/v2/auth/session');assert.equal(anon.response.status,200);assert.equal(anon.body.loggedIn,false);assert(!Object.hasOwn(anon.body,'usesDefaultPassword'));
+const bad=await call('/api/v2/auth/login','POST',{username,password:'wrong-password'});assert.equal(bad.response.status,401);
+const authenticated=await call('/api/v2/auth/login','POST',{username,password});assert.equal(authenticated.response.status,200);
+const setCookie=authenticated.response.headers.get('Set-Cookie');assert(setCookie?.includes('HttpOnly')&&setCookie.includes('Secure')&&setCookie.includes('SameSite=Strict'));
+const cookie=setCookie.split(';')[0];const session=await call('/api/v2/auth/session','GET',undefined,cookie);assert.equal(session.body.loggedIn,true);assert.equal(session.body.usesDefaultPassword,false);
+assert.equal((await call('/api/v2/bookmarks')).response.status,401);
+const current=await call('/api/v2/bookmarks','GET',undefined,cookie);
+assert([200,409].includes(current.response.status));assert.equal(current.response.headers.get('Cache-Control'),'private, no-store');
+for(const path of ['/api/login','/api/check','/api/logout','/api/account/security','/api/account/change-password','/api/account/recovery']){
+  for(const suffix of ['', '/']){const result=await call(path+suffix);assert.equal(result.response.status,410);assert.equal(result.body.code,'AUTH_PROTOCOL_RETIRED');}
 }
-
-async function json(path, method = 'GET', body, cookie) {
-    return request(path, {
-        method,
-        headers: {
-            ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-            ...(cookie ? { Cookie: cookie } : {})
-        },
-        body: body === undefined ? undefined : JSON.stringify(body)
-    });
+for(const [path,method] of [['/api/v2/auth/login','GET'],['/api/v2/auth/session','POST'],['/api/v2/auth/logout','GET']]) {
+  const result=await call(path,method,method==='POST'?{}:undefined);assert.equal(result.response.status,405);assert.match(result.response.headers.get('content-type')||'',/json/);
 }
-
-const testData = `/* acceptance fixture */
-var sections = [
-    { key: 'public_links', kind: 'card', label: 'Public', visible: true, dynamic: false, cards: [
-        { id: 'public_card', type: 'expandable', title: 'Public Card', url: 'https://example.com', comment: 'Acceptance parent note', subCards: [
-            { id: 'public_sub_card', type: 'compact', icon: 'P', content: 'Public Sub Card With A Very Long Title That Must Be Truncated', note: 'Compact note underneath', url: 'https://example.com/sub' },
-            { id: 'public_title_only_sub_card', icon: 'P', title: 'Public Title Only Sub Card With A Very Long Title', url: 'https://example.com/title-only' },
-            { id: 'public_desc_sub_card', icon: 'P', title: 'Public Described Sub Card With A Very Long Title', desc: 'Two-line description underneath', url: 'https://example.com/described' }
-        ] }
-    ] },
-    { key: 'private_links', kind: 'card', label: 'Private', visible: true, dynamic: false, private: true, cards: [
-        { id: 'private_card', type: 'simple', title: 'Private Card', url: 'https://private.example.com' }
-    ] },
-    { key: 'legacy_secret', kind: 'card', label: 'Legacy encrypted', encrypted: true, enc: { data: 'discard-me' }, cards: [] }
-];
-`;
-
-const checkAnon = await json('/api/check');
-assert(checkAnon.response.status === 200 && checkAnon.body.loggedIn === false, 'anonymous check failed');
-
-const deniedSave = await json('/api/save', 'POST', { content: testData });
-assert(deniedSave.response.status === 401, 'anonymous save was not denied');
-
-const badLogin = await json('/api/login', 'POST', { username, password: 'wrong-password' });
-assert(badLogin.response.status === 401, 'bad login was not denied');
-
-const login = await json('/api/login', 'POST', { username, password });
-assert(login.response.status === 200 && login.body.role === 'admin', 'admin login failed');
-const setCookie = login.response.headers.get('set-cookie') || '';
-const cookie = setCookie.split(';')[0];
-assert(cookie.startsWith('auth='), 'auth cookie missing');
-
-// Seed before asserting merged site configuration (also works with fresh local KV).
-await json('/api/site-config', 'POST', { title: 'SmartTools Acceptance', subCardLayout: 'directory' }, cookie);
-
-const save = await json('/api/save', 'POST', { content: testData }, cookie);
-assert(save.response.status === 200 && save.body.ok, 'fixture save failed');
-
-const adminData = await json('/api/data?format=json', 'GET', undefined, cookie);
-assert(adminData.response.status === 200 && adminData.body.privateFiltered === false, 'admin data flags invalid');
-assert(adminData.body.content.includes('Private Card'), 'admin cannot see Private content');
-assert(adminData.body.content.includes('Public Card'), 'admin cannot see public content');
-assert(!adminData.body.content.includes('legacy_secret') && !adminData.body.content.includes('discard-me'), 'legacy encrypted section was retained');
-
-const structuredAdmin = await json('/api/data?format=structured', 'GET', undefined, cookie);
-assert(structuredAdmin.body.sections.length === 2 && structuredAdmin.body.hasKV, 'structured admin data failed');
-assert((structuredAdmin.response.headers.get('cache-control') || '').includes('private'), 'structured admin response is not private');
-const structuredPublic = await json('/api/data?format=structured');
-assert(structuredPublic.body.sections.length === 1 && structuredPublic.body.privateFiltered, 'structured Private filtering failed');
-const conflict = await json('/api/save', 'POST', { content: testData, baseEtag: 'stale-fixture' }, cookie);
-assert(conflict.response.status === 409 && conflict.body.code === 'SAVE_CONFLICT', 'stale save was not rejected');
-
-const publicData = await json('/api/data?format=json');
-assert(publicData.response.status === 200 && publicData.body.privateFiltered === true, 'public data flags invalid');
-assert(publicData.body.content.includes('Public Card'), 'public content missing');
-assert(!publicData.body.content.includes('Private Card') && !publicData.body.content.includes('private_links'), 'Private content leaked anonymously');
-assert(publicData.body.siteConfig && publicData.body.siteConfig.title === 'SmartTools Acceptance', 'site config was not merged into data response');
-
-const directJs = await request('/api/data');
-assert(directJs.response.status === 200, 'javascript data endpoint failed');
-assert(
-    (directJs.response.headers.get('cache-control') || '') === 'public, max-age=31536000, s-maxage=86400, stale-while-revalidate=31536000',
-    'public data cache policy is invalid'
-);
-assert(!directJs.body.includes('Private Card') && directJs.body.includes('Public Card'), 'javascript response privacy filter failed');
-assert(directJs.body.includes('window.__siteConfig') && directJs.body.includes('window.__viewerInfo'), 'javascript bootstrap metadata missing');
-
-const adminDirectJs = await request('/api/data', { headers: { Cookie: cookie } });
-assert(adminDirectJs.body.includes('Private Card'), 'authenticated javascript response lost Private data');
-assert((adminDirectJs.response.headers.get('cache-control') || '').includes('no-store'), 'authenticated data response is cacheable');
-
-const publicAfterAdmin = await request('/api/data');
-assert(!publicAfterAdmin.body.includes('Private Card'), 'public cache was contaminated by authenticated data');
-
-const publicMeta = await json('/api/data-meta');
-const adminMeta = await json('/api/data-meta', 'GET', undefined, cookie);
-assert(publicMeta.body.privateFiltered === true && adminMeta.body.privateFiltered === false, 'metadata privacy scope failed');
-assert(publicMeta.body.dataEtag !== adminMeta.body.dataEtag, 'public/admin ETags must differ');
-
-const accountSecurityDenied = await json('/api/account/security');
-assert(accountSecurityDenied.response.status === 401, 'anonymous account security access was not denied');
-const passwordChangeDenied = await json('/api/account/change-password', 'POST', { currentPassword: password, newPassword: 'NewSecurePass2026' });
-assert(passwordChangeDenied.response.status === 401, 'anonymous password change was not denied');
-const recoveryDisabled = await json('/api/account/recovery');
-assert(recoveryDisabled.response.status === 200 && recoveryDisabled.body.recoveryEnabled === false, 'password recovery should be disabled by default');
-
-const sourceDenied = await json('/api/source', 'POST', { source: 'kv' });
-assert(sourceDenied.response.status === 401, 'anonymous source mutation was not denied');
-const sourceSet = await json('/api/source', 'POST', { source: 'kv' }, cookie);
-assert(sourceSet.response.status === 200 && sourceSet.body.source === 'kv', 'source update failed');
-
-const siteSet = await json('/api/site-config', 'POST', {
-    title: 'SmartTools Acceptance',
-    defaultTheme: 'mint',
-    subCardLayout: 'directory',
-    autoBackupEnabled: true,
-    backupRetention: 3
-}, cookie);
-assert(siteSet.response.status === 200 && !('defaultTheme' in siteSet.body), 'site config retained removed theme field');
-assert(siteSet.body.subCardLayout === 'directory', 'site config did not persist directory layout');
-const siteInvalidLayout = await json('/api/site-config', 'POST', { subCardLayout: 'unsupported' }, cookie);
-assert(siteInvalidLayout.body.subCardLayout === 'directory', 'invalid sub-card layout did not fall back to current valid value');
-const siteGet = await json('/api/site-config');
-assert(siteGet.body.title === 'SmartTools Acceptance' && siteGet.body.subCardLayout === 'directory' && !('defaultTheme' in siteGet.body), 'site config read failed');
-
-const backupCreate = await json('/api/backups?action=create', 'POST', {}, cookie);
-assert(backupCreate.response.status === 200 && backupCreate.body.backup, 'manual backup failed');
-const backupList = await json('/api/backups', 'GET', undefined, cookie);
-assert(Array.isArray(backupList.body.backups) && backupList.body.backups.length >= 1, 'backup list failed');
-
-const comment = await json('/api/comment', 'POST', {
-    path: ['sections', 0, 'cards', 0, 'comment'],
-    comment: 'Acceptance note'
-}, cookie);
-assert(comment.response.status === 200 && comment.body.ok, 'comment update failed');
-const afterComment = await json('/api/data?format=json', 'GET', undefined, cookie);
-assert(afterComment.body.content.includes('Acceptance note'), 'comment was not persisted');
-
-for (const endpoint of ['/api/users', '/api/archives', '/api/public-slug', '/api/inbox', '/api/push', '/api/migrate-v2', '/api/change-password']) {
-    const result = await request(endpoint);
-    assert(result.response.status === 404, `obsolete endpoint still exists: ${endpoint} (${result.response.status})`);
-}
-
-for (const asset of [
-    '/', '/config.html',
-    '/shared/csv-schema.js', '/shared/xlsx-adapter.js', '/shared/zip-adapter.js',
-    '/extensions/open-tabs-importer/manifest.json'
-]) {
-    const result = await request(asset);
-    assert(result.response.status === 200, `retained asset unavailable: ${asset}`);
-}
-
-for (let theme = 1; theme <= 5; theme++) {
-    for (const suffix of ['', '.html']) {
-        const route = `/index${theme}${suffix}`;
-        const result = await request(route, { redirect: 'manual' });
-        const location = result.response.headers.get('location') || '';
-        assert(result.response.status === 301 && new URL(location, base).pathname === '/', `legacy theme route did not redirect: ${route}`);
-    }
-}
-
-const config = await request('/config.html');
-for (const id of ['btnUsers', 'btnMySlug', 'btnPush', 'btnP2pPush', 'btnInbox', 'btnMigrate', 'btnChangePwd']) {
-    assert(!config.body.includes(`id="${id}"`), `removed UI control remains: ${id}`);
-}
-for (const api of ['/api/users', '/api/inbox', '/api/push', '/api/public-slug', '/api/migrate-v2']) {
-    assert(!config.body.includes(api), `removed API reference remains in config: ${api}`);
-}
-assert(!config.body.includes('siteConfigDefaultThemeInput'), 'removed theme configuration remains');
-assert(config.body.includes('id="siteConfigSubCardLayoutInput"'), 'sub-card layout configuration is missing');
-const configLogic = await request('/shared/config-app.js');
-assert(config.body.includes('id="btnAccountSecurity"') && configLogic.body.includes('/api/account/change-password'), 'account security UI or API integration is missing');
-assert(config.body.includes('id="passwordRecoveryModal"') && !config.body.includes('PASSWORD_RECOVERY_TOKEN='), 'password recovery UI is missing or embeds a recovery token');
-
-const home = await request('/');
-assert(!home.body.includes('styleSwitcher'), 'theme switcher remains on homepage');
-assert(!/index[1-5]\.html/.test(home.body), 'legacy theme links remain on homepage');
-assert(home.body.includes('<title>CodingRiver书签收藏站</title>'), 'homepage default title is empty');
-assert(!home.body.includes('src="shared/data-loader.js"'), 'homepage still blocks on external data loader');
-assert(home.body.includes('data-build-output="fav-page-inline"'), 'homepage runtime was not inlined by the production build');
-assert(!/<script\b[^>]*\bsrc="shared\/(?:fav-page|note-modal)\.js"/i.test(home.body), 'homepage still has a blocking external runtime script tag');
-
-const pageLogic = await request('/shared/fav-page.js');
-assert(!pageLogic.body.includes("fetch('/api/site-config')"), 'homepage still makes a separate site config request');
-assert(pageLogic.body.includes('loading="lazy"') && pageLogic.body.includes('ensureSubCardsRendered'), 'lazy media or sub-card rendering is missing');
-assert(pageLogic.body.includes('data-subcard-layout') && pageLogic.body.includes('renderSubCardIcon'), 'configurable directory layout or icon fallback is missing');
-assert(pageLogic.body.includes("renderImageIcon(__safeImgUrl(faviconUrl)"), 'automatic sub-card favicons bypass the same-origin icon proxy');
-
-console.log(JSON.stringify({
-    ok: true,
-    base,
-    structuredJson: true,
-    staleSaveRejected: true,
-    privateIsolation: true,
-    legacyEncryptedDiscarded: true,
-    singleTheme: true,
-    legacyThemeRedirects: 10,
-    extensionRetained: true,
-    importExportRetained: true
-}, null, 2));
+for(const path of ['/api/change-password','/api/unknown-route']) assert.equal((await call(path)).response.status,404);
+const logout=await call('/api/v2/auth/logout','POST',{});assert.equal(logout.response.status,200);
+assert.equal((await call('/api/v2/auth/session','GET',undefined,logout.response.headers.get('set-cookie').split(';')[0])).body.loggedIn,false);
+console.log('PASS isolated v2 Pages authentication, signed session, bookmark denial, retired account routes and JSON 404');

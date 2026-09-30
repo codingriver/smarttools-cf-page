@@ -41,6 +41,8 @@ try {
     env: {
       ...process.env,
       SMARTTOOLS_SNAPSHOT_URL: snapshotUrl,
+      SMARTTOOLS_BOOKMARKS_MODE: 'legacy',
+      SMARTTOOLS_INLINE_SNAPSHOT: '1',
       SMARTTOOLS_OUTPUT_DIR: path.relative(process.cwd(), acceptanceOutput),
       SMARTTOOLS_OUTPUT_CLEAN: '0'
     },
@@ -67,10 +69,10 @@ const [index, config, headers, routes, dataFunction, extensionPopupHtml, extensi
   Promise.all(['save.js', 'comment.js', 'source.js', 'site-config.js', 'backups.js']
     .map(file => fs.readFile(path.resolve('functions/api', file), 'utf8'))),
   Promise.all([
-    'functions/_shared/account-security.js',
-    'functions/api/account/change-password.js',
-    'functions/api/account/security.js',
-    'functions/api/account/recovery.js'
+    'functions/_shared/auth-v2.js',
+    'functions/api/v2/auth/login.js',
+    'functions/api/v2/auth/session.js',
+    'functions/api/v2/auth/logout.js'
   ].map(file => fs.readFile(path.resolve(file), 'utf8')))
 ]);
 
@@ -148,10 +150,10 @@ for (const pageName of ['start']) {
   assert(extensionManifest.web_accessible_resources === undefined, 'management/cache resources must not be web-accessible');
 
 assert(cacheInvalidators.every(source => source.includes('invalidatePublicDataCache')), 'a data mutation route does not invalidate the public cache');
-assert(config.includes('id="btnAccountSecurity"') && config.includes('id="passwordRecoveryModal"'), 'account security UI missing from build');
+assert((await fs.readFile(path.join(dist, 'account.html'), 'utf8')).includes('服务端账户配置'), 'static account configuration missing from build');
+assert(!(await fs.access(path.join(dist,'shared','account-maintenance.js')).then(()=>true,()=>false)), 'retired account-maintenance script must not ship');
 assert(!config.includes('PASSWORD_RECOVERY_TOKEN='), 'recovery token assignment leaked into the admin build');
-assert(accountSecuritySources.every(source => !/console\.(?:log|debug|info)\s*\(/.test(source)), 'account security code logs sensitive request data');
-assert(!accountSecuritySources.join('\n').includes('body.password'), 'account security code exposes a generic plaintext password field');
+assert(accountSecuritySources.every(source => !/console\.(?:log|debug|info)\s*\(/.test(source)), 'v2 auth logs sensitive request data');
 
 console.log(JSON.stringify({
   ok: true,
@@ -162,6 +164,6 @@ console.log(JSON.stringify({
   currentPageImportButton: true,
   homepageModeGuard: true,
   publicDataCacheInvalidation: true,
-  accountSecurityUi: true,
+  staticAccountGuide: true,
   sensitiveLogging: false
 }, null, 2));

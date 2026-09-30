@@ -7,12 +7,12 @@ import { validateDocument, businessContent, entries, moveNode, canMoveNode } fro
 import { prepareCandidate } from './prepare-bookmarks-v2.mjs';
 import { fixture, folder, bookmark, testEnv } from './bookmarks-v2-fixture.mjs';
 import { handleBookmarks, CURRENT_KEY, BACKUP_PREFIX } from '../functions/_shared/bookmarks-v2.js';
-import { createToken } from '../functions/_shared/auth.js';
+import { createSessionToken } from '../functions/_shared/auth-v2.js';
 import { onRequest as middleware } from '../functions/_middleware.js';
 import { menuTargets, appendCapture, resolveTarget, captureItem } from '../extensions/open-tabs-importer/menu-model.js';
 const env = testEnv(), original = { document:fixture(), etag:'"initial"' };
 env.FAV_KV.data.set(CURRENT_KEY, JSON.stringify(original));
-const token = await createToken(env.ADMIN_USER, env.AUTH_SECRET);
+const token = await createSessionToken(env);
 const call = (method='GET', body, auth=true, meta=false) => handleBookmarks({env, request:new Request('https://example.invalid/api/v2/bookmarks', {method,headers:auth?{Cookie:'auth='+token}:{},...(body===undefined?{}:{body:JSON.stringify(body)})})},meta);
 assert.equal((await call('GET',undefined,false)).status,401);
 assert.equal((await call()).headers.get('Cache-Control'),'private, no-store');

@@ -12,7 +12,7 @@ Features
 - Retain current-page/current-window/all-window tab collection, clipboard and HTML/JSON export. Old website-confirmation import is deferred and its buttons disabled in this version.
 
 Setup
-Configure your HTTPS service address and approve that origin, then sign in. Requires the new /api/v2/bookmarks protocol and separately prepared v2 server data; no automatic online migration or legacy-write fallback. Website account security remains available, but v2 mode retires old website bookmark management.
+Configure your HTTPS service address and approve that origin, then sign in. Requires the new /api/v2/bookmarks protocol and separately prepared v2 server data; no automatic online migration or legacy-write fallback. The website account page is a static server-configuration guide; password changes are made by updating the server PASSWORD Secret and redeploying. A missing PASSWORD enables an insecure public default and is flagged when signed in. Old account protocols are retired.
 
 Privacy and permissions
 Required permissions remain tabs, scripting, storage and contextMenus; site permissions are optional and requested on demand. No Chrome bookmarks/history/cookies access, analytics or new-tab override. Passwords and Cookie tokens are not stored by the extension. Your configured URL may sync with your browser account; bookmark cache and interface preferences do not.

@@ -12,4 +12,4 @@ export class MemoryKV {
   async delete(key) { this.data.delete(key); }
   async list({prefix}) { return {keys:[...this.data.keys()].filter(k=>k.startsWith(prefix)).map(name=>({name})),list_complete:true}; }
 }
-export const testEnv = () => ({ BOOKMARKS_MODE:'v2', FAV_KV:new MemoryKV(), ADMIN_USER:'testadmin', ADMIN_PASS:'TestPass2026', AUTH_SECRET:'0123456789abcdef0123456789abcdef' });
+export const testEnv = () => ({ BOOKMARKS_MODE:'v2', FAV_KV:new MemoryKV(), USER:'testadmin', PASSWORD:'TestPass2026', AUTH_SECRET:'0123456789abcdef0123456789abcdef' });
